@@ -1,5 +1,7 @@
+import json
+
 from file_walker import WalkedFile
-from stats import count_files_by_language, count_loc_by_language, count_tests
+from stats import count_files_by_language, count_loc_by_language, count_tests, inventory_config_files, inventory_dependency_manifests
 
 
 def test_count_files_by_language_ignores_unclassified_files():
@@ -82,3 +84,35 @@ def test_count_tests_does_not_count_regex_test_method_calls(tmp_path):
     files = [WalkedFile(path="thing.test.js", language="javascript")]
     result = count_tests(str(tmp_path), files)
     assert result == {"total": 1, "framework": "jest"}
+
+
+def test_inventory_dependency_manifests_parses_requirements_txt(tmp_path):
+    (tmp_path / "requirements.txt").write_text(
+        "# comment\nrequests==2.31\npyyaml\n\n", encoding="utf-8"
+    )
+    result = inventory_dependency_manifests(str(tmp_path))
+    assert {"file": "requirements.txt", "count": 2} in result
+
+
+def test_inventory_dependency_manifests_parses_package_json(tmp_path):
+    (tmp_path / "package.json").write_text(
+        json.dumps({"dependencies": {"react": "^18"}, "devDependencies": {"jest": "^29"}}),
+        encoding="utf-8",
+    )
+    result = inventory_dependency_manifests(str(tmp_path))
+    assert {"file": "package.json", "count": 2} in result
+
+
+def test_inventory_dependency_manifests_skips_absent_files(tmp_path):
+    result = inventory_dependency_manifests(str(tmp_path))
+    assert result == []
+
+
+def test_inventory_config_files_finds_known_files(tmp_path):
+    (tmp_path / "Dockerfile").write_text("FROM python:3.12\n", encoding="utf-8")
+    (tmp_path / ".github").mkdir()
+    (tmp_path / ".github" / "workflows").mkdir()
+    (tmp_path / ".github" / "workflows" / "ci.yml").write_text("name: ci\n", encoding="utf-8")
+    result = inventory_config_files(str(tmp_path))
+    assert "Dockerfile" in result
+    assert ".github/workflows/ci.yml" in result
