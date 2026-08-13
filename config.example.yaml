@@ -38,3 +38,8 @@ batch_size: 150                # files per batch, only used when full_repo_mode:
 # Omitted by default -- the tool then writes into output/json/<repo-name>-metrics.json
 # and output/md/<repo-name>-metrics.md inside codebase-insights itself. Uncomment and
 # set output_path (or use --out) to write a single fixed path instead.
+
+# --- partial runs ---
+skip_l1: false                 # true = skip deterministic stats entirely, l1_stats omitted
+                                # from output (see config-l1-only.yaml / config-l2-only.yaml
+                                # for ready-made partial-run configs)

@@ -31,6 +31,7 @@ DEFAULT_CONFIG = {
     "batch_size": 150,
     "output_path": None,  # None = use the smart default (output/json, output/md); set to
                           # override with a fixed path, same as --out.
+    "skip_l1": False,  # true = skip deterministic stats entirely, l1_stats omitted from output
 }
 
 
@@ -42,6 +43,7 @@ _EXPECTED_TYPES = {
     "full_repo_mode": bool,
     "batch_size": int,
     "output_path": str,
+    "skip_l1": bool,
 }
 
 

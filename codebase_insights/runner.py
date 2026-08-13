@@ -110,14 +110,14 @@ def run(
         languages=config["languages"] or None,
     )
 
-    l1_stats = collect_l1_stats(repo_path, files)
     l2_patterns = _run_l2_or_none(repo_path, files, config)
 
     metrics = {
         "repo_path": str(repo.resolve()),
         "analyzed_at": datetime.now(timezone.utc).isoformat(),
-        "l1_stats": l1_stats,
     }
+    if not config["skip_l1"]:
+        metrics["l1_stats"] = collect_l1_stats(repo_path, files)
     if l2_patterns is not None:
         metrics["l2_patterns"] = l2_patterns
 

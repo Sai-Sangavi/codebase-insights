@@ -1,0 +1,3 @@
+# Runs L1 (deterministic stats) only — no LLM calls at all.
+pattern_categories: []
+architecture_summary: false

@@ -61,3 +61,23 @@ def test_render_markdown_includes_pattern_category_and_error_and_architecture():
     assert "_Error: claude CLI exited 1: boom_" in markdown
     assert "## Architecture" in markdown
     assert "This repo has a db/ module" in markdown
+
+
+def test_render_markdown_omits_l1_sections_when_l1_stats_absent():
+    # An L2-only run (skip_l1: true) omits l1_stats from metrics entirely;
+    # the report shouldn't render misleading "0 tests"/"0 commits" sections
+    # for stats that were never computed.
+    metrics = {
+        "repo_path": "/some/repo",
+        "analyzed_at": "2026-08-13T00:00:00+00:00",
+        "l2_patterns": {
+            "mode": "default",
+            "categories": {},
+            "architecture_summary": "A repo.",
+        },
+    }
+    markdown = render_markdown(metrics)
+    assert "## Stack" not in markdown
+    assert "## Tests" not in markdown
+    assert "## Git" not in markdown
+    assert "## Architecture" in markdown

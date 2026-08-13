@@ -48,6 +48,25 @@ def test_run_uses_smart_default_output_location_when_out_not_given(tmp_path, mon
     assert metrics["repo_path"] == str(repo.resolve())
 
 
+def test_run_skip_l1_omits_l1_stats_from_output(tmp_path, monkeypatch):
+    repo = _make_minimal_repo(tmp_path)
+    out_path = tmp_path / "metrics.json"
+    monkeypatch.chdir(tmp_path)
+
+    config_file = tmp_path / "l2-only.yaml"
+    config_file.write_text("skip_l1: true\n", encoding="utf-8")
+
+    fake_l2 = {"mode": "default", "categories": {}, "architecture_summary": None}
+    monkeypatch.setattr(runner, "collect_l2_patterns", lambda repo_path, files, config: fake_l2)
+
+    exit_code = run(str(repo), config_path=str(config_file), out=str(out_path))
+
+    assert exit_code == 0
+    metrics = json.loads(out_path.read_text(encoding="utf-8"))
+    assert "l1_stats" not in metrics
+    assert metrics["l2_patterns"] == fake_l2
+
+
 def test_run_returns_1_on_malformed_config(tmp_path, monkeypatch, capsys):
     monkeypatch.chdir(tmp_path)
     repo = _make_minimal_repo(tmp_path)
