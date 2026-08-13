@@ -33,9 +33,9 @@ DEFAULT_CONFIG = {
     "exclude": [],  # extra glob patterns, merged with DEFAULT_EXCLUDES above
     "languages": [],  # empty = classify/count every language file_walker recognizes
     "pattern_categories": [  # which L2 conventions to look for -- see llm/patterns.py.
-        "date_handling",      # Ashutosh's example #1: "you use dateutil.now"
-        "db_connection",      # Ashutosh's example #2: "how do you get the connection"
-        "queue_access",       # Ashutosh's example #3: "how do you talk to queues"
+        "date_handling",      # originally-named example #1: "you use dateutil.now"
+        "db_connection",      # originally-named example #2: "how do you get the connection"
+        "queue_access",       # originally-named example #3: "how do you talk to queues"
         "logging",            # extended by us: same "one seam per concern" idea
         "error_handling",
         "config_loading",

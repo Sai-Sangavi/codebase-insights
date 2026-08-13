@@ -12,7 +12,7 @@
 
 ## Global Constraints
 
-- Must be validated against a downloaded open-source repository — never `bnts-arc` itself (spec, Constraints).
+- Must be validated against a downloaded open-source repository — never the team's own internal platform codebase (spec, Constraints).
 - Nothing project-specific may be hardcoded; excludes, language allowlist, pattern categories, and mode all come from `config.yaml`, with built-in defaults when omitted (spec, Config shape).
 - Single command: `python analyze.py <repo_path> [--config config.yaml] [--full] [--out metrics.json]` (spec, Decisions).
 - L1 always runs and always produces output, independent of L2 (spec, Output schema).
@@ -1951,7 +1951,7 @@ pytest -v
 ## Manual end-to-end validation
 
 Before considering a change done, run the tool once against a real
-downloaded open-source repository (not this repo, and not `bnts-arc` —
+downloaded open-source repository (not this repo, and never the team's own internal platform codebase —
 see the design spec's constraints) and confirm `metrics.json`/`metrics.md`
 look sane. This is a manual sanity check, not an automated test — the L2
 Claude CLI calls are non-deterministic and not something to assert on in CI.
@@ -1982,7 +1982,7 @@ git commit -m "feat: wire L2 pattern detection into main(), write metrics.md, ad
 - Output schema (`metrics.json` + `metrics.md`) → Tasks 6, 10, 11. ✅
 - Error handling (CLI missing → skip L2 with warning; per-category CLI failure isolated; malformed config fails fast; unreadable/binary files silently skipped) → Tasks 1 (config), 3 (LOC skip), 9 (per-category), 11 (CLI-missing skip). ✅
 - Testing approach (fixture-based L1 tests, mocked-CLI L2 tests, manual e2e check) → every task's tests + README's manual-validation note. ✅
-- Out-of-scope items (code-quality metrics, broader category menu, folding into bnts-arc) → intentionally has no task; called out in README/spec instead. ✅
+- Out-of-scope items (code-quality metrics, broader category menu, folding into a larger internal platform's tooling) → intentionally has no task; called out in README/spec instead. ✅
 
 **Placeholder scan:** No TBD/TODO/"add appropriate error handling" phrasing anywhere above — every step has literal code or a literal shell command.
 

@@ -2,7 +2,7 @@
 
 Deliberately does ONLY argv parsing + handing off to runner.run() -- no
 orchestration logic lives here. This split (cli.py = parsing, runner.py =
-doing) mirrors bnts-arc's tools/quality package convention: it means
+doing) mirrors a common standalone-tool package convention: it means
 runner.run() can be called directly (e.g. from tests, or from other Python
 code) with plain keyword arguments, without going through argv at all.
 """

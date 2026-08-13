@@ -2,59 +2,59 @@
 
 **Date:** 2026-08-13
 **Status:** Approved (pending write-up), design phase
-**Origin:** Action item from Ashutosh Upadhyay to Sai Sangavi, team meeting 2026-08-12
-("Ashutosh U, Papishetti S + 2" transcript, paragraphs 43–69). Verified against the
-transcript prior to brainstorming this design — see the verification the assistant
-performed at the start of this thread for line-by-line traceability of what Ashutosh
-actually said vs. what's an open design decision.
+**Origin:** An action item assigned during a team meeting (2026-08-12) to build a
+codebase-understanding tool. Verified against the meeting notes prior to
+brainstorming this design — see the verification the assistant performed at the
+start of this thread for line-by-line traceability of what was actually requested
+vs. what's an open design decision.
 
 ## Goal
 
 Given an arbitrary codebase — specifically a "brownfield" project a team has been
 working on for 2–5 years — understand it quickly and as completely as possible,
 without a human reading through it file by file. This is deliberately separate from
-Ravi Kumar Verma's parallel work (a structural code-relationship graph via
-Graphify/Code Graph — see para 32–41 of the same transcript); this tool is the
-**stats + conventions layer**, not the code-relationship-graph layer.
+a teammate's parallel work (a structural code-relationship graph via
+Graphify/Code Graph); this tool is the **stats + conventions layer**, not the
+code-relationship-graph layer.
 
-Two levels, as Ashutosh framed them:
+Two levels, as originally framed:
 
 - **L1 — basic stats.** Deterministic, no LLM. "Think of what are stats that can be
-  simply calculated from the source code itself." (para 51)
+  simply calculated from the source code itself."
 - **L2 — patterns.** The conventions a mature codebase has already settled on, even
   where nobody wrote them down — e.g. "whenever you create a date object, you use
   dateutil.now," or "whenever you connect to a database and invoke a query, this is
-  how you get the connection." (para 61, 63) May need an LLM.
+  how you get the connection." May need an LLM.
 
-Everything beyond Ashutosh's own named examples (file counts, test counts, date
+Everything beyond the originally-named examples (file counts, test counts, date
 handling, DB connection, queue access) is this project's own design decision, made
-explicit throughout this document — he was clear he didn't want an exhaustively
+explicit throughout this document — the ask was explicitly not an exhaustively
 pre-enumerated checklist; discovering what counts as a pattern in a given repo is
-part of the point (para 55).
+part of the point.
 
-## Constraints (from the transcript, non-negotiable)
+## Constraints (from the original ask, non-negotiable)
 
 - Must be tested against a downloaded open-source repository — explicitly **not**
-  `bnts-arc` itself (para 65).
+  the team's own internal platform codebase.
 - Must stay general-purpose; anything that varies per-project comes from
-  configuration, not hardcoded logic (para 67–69).
-- Language: Python (his suggestion, not a mandate — "most likely Python scripts,
-  maybe shell script, whatever," para 43).
+  configuration, not hardcoded logic.
+- Language: Python (a suggestion, not a mandate — "most likely Python scripts,
+  maybe shell script, whatever").
 
-## Decisions made during brainstorming (not specified by Ashutosh)
+## Decisions made during brainstorming (not specified in the original ask)
 
-- **Location:** standalone project (this repo), not inside `bnts-arc`, for now —
-  kept general enough to fold into `bnts-arc/tools/` later without a rewrite if it
-  graduates into a product feature.
+- **Location:** standalone project (this repo), not folded into any other internal
+  codebase, for now — kept general enough to fold into a larger platform's tooling
+  later without a rewrite if it graduates into a product feature.
 - **Structure:** one command (`python analyze.py <repo_path>`), code split across a
   few small, single-purpose files rather than one large file or a full package.
 - **LLM access:** shells out to the Claude Code CLI (`claude`) as a subprocess,
   rather than calling the Anthropic API directly — no separate API key/billing
   needed beyond an existing Claude Code auth.
 - **Output:** `metrics.json` (machine-readable) + `metrics.md` (human-readable
-  report rendered from the JSON) — mirrors the JSON-source-of-truth +
-  friendly-renderer split Ashutosh described elsewhere in the same meeting for the
-  implementation plan.
+  report rendered from the JSON) — mirrors a JSON-source-of-truth +
+  friendly-renderer split discussed elsewhere in the same meeting for a related
+  implementation-plan-rendering idea.
 
 ## Architecture
 
@@ -78,9 +78,9 @@ fast and needed as an input to L2's narrowing anyway; then L2).
 All computed via filesystem walk (`file_walker.py`), manifest parsing, and `git`
 subprocess calls. Zero LLM calls in this phase.
 
-- File counts by language/extension (Ashutosh's example)
+- File counts by language/extension (an originally-named example)
 - Lines of code (LOC) per language
-- Test case counts + detected test framework (Ashutosh's example: "test cases")
+- Test case counts + detected test framework (an originally-named example: "test cases")
 - Dependency manifest inventory (requirements.txt/pyproject.toml/package.json/etc.),
   parsed dependency counts
 - Config file inventory (Dockerfile, CI workflow files, linter configs, etc.)
@@ -90,9 +90,9 @@ subprocess calls. Zero LLM calls in this phase.
 - Branching strategy signal (from `git branch -a` / merge history shape)
 - PR/issue template presence (`.github/PULL_REQUEST_TEMPLATE.md`, `ISSUE_TEMPLATE/`)
 
-Deliberately excluded from v1 (would scope-creep into what `bnts-arc/tools/quality`
-already does): largest-files-by-LOC, cyclomatic complexity, or any other
-code-quality-flavored metric.
+Deliberately excluded from v1 (would scope-creep into what a general code-quality
+gate/linter runner already does): largest-files-by-LOC, cyclomatic complexity, or
+any other code-quality-flavored metric.
 
 ## L2 — Pattern detection (needs an LLM)
 
@@ -101,9 +101,9 @@ code-quality-flavored metric.
 Config-driven (`pattern_categories` in `config.yaml`), not hardcoded — a project can
 add/remove categories without touching code. Default starter set:
 
-- `date_handling` (Ashutosh's example)
-- `db_connection` (Ashutosh's example)
-- `queue_access` (Ashutosh's example)
+- `date_handling` (an originally-named example)
+- `db_connection` (an originally-named example)
+- `queue_access` (an originally-named example)
 - `logging`
 - `error_handling`
 - `config_loading`
@@ -122,18 +122,18 @@ security, observability, docs/release) was explored during brainstorming and is
 **intentionally not all shipped as defaults**. It's documented as commented-out
 examples in `config.example.yaml` so it's discoverable and any project can opt in,
 without bloating what runs by default. Continuing to hand-enumerate categories
-indefinitely works against Ashutosh's actual point — that discovering what counts as
-a pattern in a given repo is itself part of the job, not a fixed checklist to
-author upfront.
+indefinitely works against the actual point of the original ask — that discovering
+what counts as a pattern in a given repo is itself part of the job, not a fixed
+checklist to author upfront.
 
 ### Narrowing strategy — two modes
 
-**Default mode** (Ashutosh's original suggestion, para 59–63): per category,
-enumerate the file-path list only (no content), ask Claude CLI to narrow to a
-handful of candidates purely from path/filename structure — betting that
-"somebody who worked on the project would have named them meaningfully" (para 59) —
-then read only those candidates' content and ask Claude CLI to synthesize the
-pattern. One narrowing call + one synthesis call per category.
+**Default mode** (per the original suggestion): per category, enumerate the
+file-path list only (no content), ask Claude CLI to narrow to a handful of
+candidates purely from path/filename structure — betting that "somebody who worked
+on the project would have named them meaningfully" — then read only those
+candidates' content and ask Claude CLI to synthesize the pattern. One narrowing
+call + one synthesis call per category.
 
 **`--full` mode** (opt-in flag, for when a user wants exhaustive coverage instead of
 speed): skip narrowing-to-a-handful. Instead split the full file list into batches
@@ -200,7 +200,7 @@ output_path: metrics.json
 
 Built-in excludes (node_modules, venv, .venv, dist, build, common VCS/cache dirs)
 always apply even with zero config, matching "leaving aside things like node
-modules and VM" (para 59).
+modules and VM" from the original ask.
 
 ## Output schema
 
@@ -265,15 +265,15 @@ GitHub) rather than parsed.
 - **`report.py`:** unit test that a known `metrics.json` fixture renders to the
   expected Markdown structure.
 - **End-to-end validation:** manually run the whole tool once against a real
-  downloaded open-source repo (per the "not arc" constraint) as a one-time manual
-  sanity check before calling this done — not an automated test.
+  downloaded open-source repo (never the team's own internal platform codebase) as
+  a one-time manual sanity check before calling this done — not an automated test.
 
 ## Out of scope for v1
 
-- Any code-quality-flavored metric (complexity, largest files) — that's
-  `bnts-arc/tools/quality`'s territory, not this tool's.
+- Any code-quality-flavored metric (complexity, largest files) — that's a general
+  code-quality gate runner's territory, not this tool's.
 - The ~25-category broader pattern menu explored during brainstorming — documented
   as opt-in config examples, not shipped as defaults.
-- Folding this into `bnts-arc/tools/` as an actual workspace package — explicitly
-  deferred until/unless it graduates from standalone tool to adopted product
-  feature.
+- Folding this into a larger internal platform's tooling as an actual workspace
+  package — explicitly deferred until/unless it graduates from standalone tool to
+  adopted product feature.

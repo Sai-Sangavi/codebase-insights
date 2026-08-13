@@ -80,8 +80,8 @@ python -m codebase_insights /path/to/some/repo --out /tmp/compare-full.json
 
 ## Project layout
 
-Follows the same shape as `bnts-arc`'s standalone tools (e.g.
-`tools/quality`): one importable package with its own `pyproject.toml`,
+Follows the same shape as a standalone-tool package convention seen in
+larger monorepos: one importable package with its own `pyproject.toml`,
 a thin `cli.py` (argument parsing only) separate from `runner.py`
 (orchestration), and a `__main__.py` for `python -m` invocation.
 
@@ -116,8 +116,9 @@ pytest -v
 ## Manual end-to-end validation
 
 Before considering a change done, run the tool once against a real
-downloaded open-source repository (not this repo, and not `bnts-arc` —
-see the design spec's constraints) and confirm the output looks sane. This
+downloaded open-source repository (not this repo, and never a team's own
+internal platform codebase — see the design spec's constraints) and
+confirm the output looks sane. This
 is a manual sanity check, not an automated test — the L2 Claude CLI calls
 are non-deterministic and not something to assert on in CI. Past runs are
 archived under `output/full-analysis/` and `output/basic-stats/` (e.g.
