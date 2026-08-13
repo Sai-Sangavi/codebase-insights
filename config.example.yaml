@@ -2,7 +2,7 @@
 exclude:                      # glob patterns, merged with built-in defaults
                                # (node_modules, .venv, venv, dist, build, .git,
                                # __pycache__, *.min.js are always excluded)
-  - "*.min.js"
+  - "vendor/**"                # example: a project-specific vendored-code directory
 languages: []                 # empty = auto-detect all; or restrict e.g. [python, javascript]
 
 # --- L2 scope ---

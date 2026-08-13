@@ -39,7 +39,15 @@ def classify_language(path: str) -> str | None:
 
 def _is_excluded(rel_path: str, exclude_patterns: list[str]) -> bool:
     posix_path = rel_path.replace("\\", "/")
-    return any(fnmatch(posix_path, pattern) for pattern in exclude_patterns)
+    for pattern in exclude_patterns:
+        if fnmatch(posix_path, pattern):
+            return True
+        # A directory pattern like "node_modules/**" is anchored at the repo root,
+        # but vendored/cache dirs nest arbitrarily deep in real monorepos
+        # (packages/web/node_modules/...), so also match at any depth.
+        if pattern.endswith("/**") and fnmatch(posix_path, "**/" + pattern):
+            return True
+    return False
 
 
 def walk_files(
