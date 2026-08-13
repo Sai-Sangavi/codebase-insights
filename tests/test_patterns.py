@@ -17,7 +17,7 @@ def resolved_claude(monkeypatch):
 
 
 def test_run_claude_cli_returns_stdout_on_success(monkeypatch, resolved_claude):
-    def fake_run(cmd, input, capture_output, text, timeout):
+    def fake_run(cmd, input, capture_output, text, encoding, timeout):
         return subprocess.CompletedProcess(cmd, returncode=0, stdout="hello", stderr="")
 
     monkeypatch.setattr(subprocess, "run", fake_run)
@@ -27,7 +27,7 @@ def test_run_claude_cli_returns_stdout_on_success(monkeypatch, resolved_claude):
 def test_run_claude_cli_invokes_resolved_path_with_prompt_on_stdin(monkeypatch, resolved_claude):
     seen = {}
 
-    def fake_run(cmd, input, capture_output, text, timeout):
+    def fake_run(cmd, input, capture_output, text, encoding, timeout):
         seen["cmd"] = cmd
         seen["input"] = input
         return subprocess.CompletedProcess(cmd, returncode=0, stdout="hello", stderr="")
@@ -42,8 +42,28 @@ def test_run_claude_cli_invokes_resolved_path_with_prompt_on_stdin(monkeypatch, 
     assert "a very long prompt" not in seen["cmd"]
 
 
+def test_run_claude_cli_encodes_stdin_as_utf8_for_non_ascii_prompts(monkeypatch, resolved_claude):
+    # Regression test: subprocess.run(..., text=True) with no explicit
+    # encoding falls back to the OS locale codec (cp1252 on this machine),
+    # which raises UnicodeEncodeError for CJK/Cyrillic/emoji content — the
+    # kind of thing a real "arbitrary codebase" is likely to contain.
+    # Passing encoding="utf-8" explicitly avoids that regardless of locale.
+    captured = {}
+
+    def fake_run(cmd, input, capture_output, text, encoding, timeout):
+        captured["encoding"] = encoding
+        captured["input"] = input
+        return subprocess.CompletedProcess(cmd, returncode=0, stdout="ok", stderr="")
+
+    monkeypatch.setattr(subprocess, "run", fake_run)
+    non_ascii_prompt = "Explain this: 日本語 emoji 🎉 Кириллица"
+    run_claude_cli(non_ascii_prompt)
+    assert captured["encoding"] == "utf-8"
+    assert captured["input"] == non_ascii_prompt
+
+
 def test_run_claude_cli_raises_on_nonzero_exit(monkeypatch, resolved_claude):
-    def fake_run(cmd, input, capture_output, text, timeout):
+    def fake_run(cmd, input, capture_output, text, encoding, timeout):
         return subprocess.CompletedProcess(cmd, returncode=1, stdout="", stderr="boom")
 
     monkeypatch.setattr(subprocess, "run", fake_run)
@@ -52,7 +72,7 @@ def test_run_claude_cli_raises_on_nonzero_exit(monkeypatch, resolved_claude):
 
 
 def test_run_claude_cli_raises_on_timeout(monkeypatch, resolved_claude):
-    def fake_run(cmd, input, capture_output, text, timeout):
+    def fake_run(cmd, input, capture_output, text, encoding, timeout):
         raise subprocess.TimeoutExpired(cmd, timeout)
 
     monkeypatch.setattr(subprocess, "run", fake_run)
@@ -61,7 +81,7 @@ def test_run_claude_cli_raises_on_timeout(monkeypatch, resolved_claude):
 
 
 def test_run_claude_cli_propagates_file_not_found(monkeypatch, resolved_claude):
-    def fake_run(cmd, input, capture_output, text, timeout):
+    def fake_run(cmd, input, capture_output, text, encoding, timeout):
         raise FileNotFoundError("no such file: claude")
 
     monkeypatch.setattr(subprocess, "run", fake_run)

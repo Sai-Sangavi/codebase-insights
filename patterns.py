@@ -23,7 +23,12 @@ def run_claude_cli(prompt: str, timeout: int = 120) -> str:
         raise FileNotFoundError("claude CLI not found on PATH")
     try:
         result = subprocess.run(
-            [claude_path, "-p"], input=prompt, capture_output=True, text=True, timeout=timeout
+            [claude_path, "-p"],
+            input=prompt,
+            capture_output=True,
+            text=True,
+            encoding="utf-8",
+            timeout=timeout,
         )
     except subprocess.TimeoutExpired as e:
         raise ClaudeCLIError(f"claude CLI timed out after {timeout}s") from e
