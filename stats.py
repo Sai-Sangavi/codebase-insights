@@ -9,8 +9,6 @@ from pathlib import Path
 
 from file_walker import WalkedFile
 
-TEST_FILENAME_MARKERS = ("test_", "_test.", ".test.", ".spec.")
-
 
 def count_files_by_language(files: list[WalkedFile]) -> dict:
     counts = Counter(f.language for f in files if f.language is not None)
