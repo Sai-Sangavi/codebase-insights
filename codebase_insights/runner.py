@@ -1,16 +1,15 @@
-"""Entrypoint: python analyze.py <repo_path> [--config config.yaml] [--full] [--out metrics.json]"""
+"""Orchestration: load config, walk the repo, compute L1 + L2, write outputs."""
 
-import argparse
 import json
 import sys
 from datetime import datetime, timezone
 from pathlib import Path
 
-from config import ConfigError, get_effective_excludes, load_config
-from llm.patterns import analyze_category, summarize_architecture
-from report import render_markdown
-from stats.file_walker import walk_files
-from stats.stats import (
+from .config import ConfigError, get_effective_excludes, load_config
+from .llm.patterns import analyze_category, summarize_architecture
+from .report import render_markdown
+from .stats.file_walker import walk_files
+from .stats.stats import (
     check_pr_templates,
     count_files_by_language,
     count_loc_by_language,
@@ -21,19 +20,6 @@ from stats.stats import (
     inventory_config_files,
     inventory_dependency_manifests,
 )
-
-
-def parse_args(argv=None) -> argparse.Namespace:
-    parser = argparse.ArgumentParser(
-        description="Understand a codebase quickly: deterministic stats + LLM-detected patterns."
-    )
-    parser.add_argument("repo_path", help="Path to the repository to analyze")
-    parser.add_argument("--config", default=None, help="Path to an optional config.yaml")
-    parser.add_argument(
-        "--full", action="store_true", help="Use exhaustive full-repo pattern coverage"
-    )
-    parser.add_argument("--out", default=None, help="Override output_path from config")
-    return parser.parse_args(argv)
 
 
 def collect_l1_stats(repo_path: str, files: list) -> dict:
@@ -52,7 +38,7 @@ def collect_l1_stats(repo_path: str, files: list) -> dict:
 
 def collect_l2_patterns(repo_path: str, files: list, config: dict) -> dict:
     """Raises FileNotFoundError if the claude CLI isn't on PATH — caller decides
-    what that means (analyze.py's main() skips L2 entirely and warns)."""
+    what that means (run()'s below skips L2 entirely and warns)."""
     file_paths = [f.path for f in files]
     categories = {
         category: analyze_category(
@@ -81,41 +67,44 @@ def _run_l2_or_none(repo_path: str, files: list, config: dict) -> dict | None:
         return None
 
 
-def main(argv=None) -> int:
-    args = parse_args(argv)
-
-    repo_path = Path(args.repo_path)
-    if not repo_path.is_dir():
-        print(f"error: repo_path does not exist or is not a directory: {args.repo_path}", file=sys.stderr)
+def run(
+    repo_path: str,
+    config_path: str | None = None,
+    full: bool = False,
+    out: str | None = None,
+) -> int:
+    repo = Path(repo_path)
+    if not repo.is_dir():
+        print(f"error: repo_path does not exist or is not a directory: {repo_path}", file=sys.stderr)
         return 1
 
     try:
-        config = load_config(args.config)
+        config = load_config(config_path)
     except ConfigError as e:
         print(f"error: {e}", file=sys.stderr)
         return 1
 
-    if args.full:
+    if full:
         config["full_repo_mode"] = True
 
     files = walk_files(
-        args.repo_path,
+        repo_path,
         exclude=get_effective_excludes(config),
         languages=config["languages"] or None,
     )
 
-    l1_stats = collect_l1_stats(args.repo_path, files)
-    l2_patterns = _run_l2_or_none(args.repo_path, files, config)
+    l1_stats = collect_l1_stats(repo_path, files)
+    l2_patterns = _run_l2_or_none(repo_path, files, config)
 
     metrics = {
-        "repo_path": str(Path(args.repo_path).resolve()),
+        "repo_path": str(repo.resolve()),
         "analyzed_at": datetime.now(timezone.utc).isoformat(),
         "l1_stats": l1_stats,
     }
     if l2_patterns is not None:
         metrics["l2_patterns"] = l2_patterns
 
-    output_path = Path(args.out or config["output_path"])
+    output_path = Path(out or config["output_path"])
     try:
         output_path.write_text(json.dumps(metrics, indent=2), encoding="utf-8")
         output_path.with_suffix(".md").write_text(render_markdown(metrics), encoding="utf-8")
@@ -124,7 +113,3 @@ def main(argv=None) -> int:
         return 1
     print(f"wrote {output_path} and {output_path.with_suffix('.md')}")
     return 0
-
-
-if __name__ == "__main__":
-    sys.exit(main())

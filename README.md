@@ -6,8 +6,8 @@ LLM-detected conventions and patterns (L2).
 ## Usage
 
 ```bash
-pip install -r requirements.txt
-python analyze.py /path/to/some/repo
+pip install -e .
+python -m codebase_insights /path/to/some/repo
 ```
 
 This writes `metrics.json` (machine-readable) and `metrics.md` (human-readable
@@ -30,27 +30,36 @@ skipped with a warning on stderr.
 
 ## Project layout
 
+Follows the same shape as `bnts-arc`'s standalone tools (e.g.
+`tools/quality`): one importable package with its own `pyproject.toml`,
+a thin `cli.py` (argument parsing only) separate from `runner.py`
+(orchestration), and a `__main__.py` for `python -m` invocation.
+
 ```
-analyze.py       # entrypoint / orchestrator (cross-cutting)
-config.py        # config loading for both levels (cross-cutting)
-report.py        # renders both levels' output to metrics.md (cross-cutting)
-stats/           # L1: deterministic stats, zero LLM dependency
-  file_walker.py # file enumeration + exclude/language handling
-  stats.py       # the actual stat computations
-llm/             # L2: LLM-based pattern detection
-  patterns.py    # the only module that shells out to Claude CLI
+pyproject.toml
+codebase_insights/
+  __main__.py      # python -m codebase_insights -> cli.main()
+  cli.py           # argument parsing only, delegates to runner.run()
+  runner.py        # orchestration: load config, walk repo, compute L1+L2, write outputs
+  config.py        # config loading for both levels (cross-cutting)
+  report.py        # renders both levels' output to metrics.md (cross-cutting)
+  stats/           # L1: deterministic stats, zero LLM dependency
+    file_walker.py # file enumeration + exclude/language handling
+    stats.py       # the actual stat computations
+  llm/             # L2: LLM-based pattern detection
+    patterns.py    # the only module that shells out to Claude CLI
 ```
 
 `stats/` groups everything that computes L1's deterministic stats;
 `llm/patterns.py` is the sole boundary where the tool talks to the Claude
-Code CLI for L2. `analyze.py`, `config.py`, and `report.py` stay at the
-root since they're genuinely cross-cutting — config holds settings for
-both levels, and report renders both levels' output.
+Code CLI for L2. `config.py` and `report.py` stay at the package root
+since they're genuinely cross-cutting — config holds settings for both
+levels, and report renders both levels' output.
 
 ## Development
 
 ```bash
-pip install -r requirements-dev.txt
+pip install -e ".[dev]"
 pytest -v
 ```
 

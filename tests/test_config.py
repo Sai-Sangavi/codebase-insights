@@ -1,6 +1,6 @@
 import pytest
 
-from config import ConfigError, DEFAULT_CONFIG, get_effective_excludes, load_config
+from codebase_insights.config import ConfigError, DEFAULT_CONFIG, get_effective_excludes, load_config
 
 
 def test_load_config_with_no_path_returns_defaults():

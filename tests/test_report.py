@@ -1,4 +1,4 @@
-from report import render_markdown
+from codebase_insights.report import render_markdown
 
 
 def _sample_metrics(with_l2=False):
