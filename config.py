@@ -44,7 +44,9 @@ def load_config(config_path: str | None) -> dict:
 
     try:
         with open(config_path, "r", encoding="utf-8") as f:
-            raw = yaml.safe_load(f) or {}
+            raw = yaml.safe_load(f)
+            if raw is None:
+                raw = {}
     except FileNotFoundError as e:
         raise ConfigError(f"config file not found: {config_path}") from e
     except yaml.YAMLError as e:

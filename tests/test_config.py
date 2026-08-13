@@ -39,3 +39,10 @@ def test_get_effective_excludes_includes_builtin_defaults():
     config = load_config(None)
     excludes = get_effective_excludes(config)
     assert "node_modules/**" in excludes
+
+
+def test_load_config_falsy_scalar_top_level_raises_config_error(tmp_path):
+    config_file = tmp_path / "config.yaml"
+    config_file.write_text("false\n", encoding="utf-8")
+    with pytest.raises(ConfigError):
+        load_config(str(config_file))
