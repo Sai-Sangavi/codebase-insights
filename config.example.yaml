@@ -1,0 +1,37 @@
+# --- L1 scope ---
+exclude:                      # glob patterns, merged with built-in defaults
+                               # (node_modules, .venv, venv, dist, build, .git,
+                               # __pycache__, *.min.js are always excluded)
+  - "*.min.js"
+languages: []                 # empty = auto-detect all; or restrict e.g. [python, javascript]
+
+# --- L2 scope ---
+pattern_categories:
+  - date_handling
+  - db_connection
+  - queue_access
+  - logging
+  - error_handling
+  - config_loading
+  # Additional categories are supported -- uncomment any of these to opt in,
+  # or add your own project-specific ones. No code changes needed.
+  # - migration_pattern
+  # - http_client
+  # - auth_check
+  # - validation
+  # - serialization
+  # - dependency_injection
+  # - retry_backoff
+  # - test_fixtures
+  # - secrets_management
+  # - tenant_scoping
+architecture_summary: true
+
+full_repo_mode: false          # true = chunk+cover-everything instead of narrow-to-handful
+batch_size: 150                # files per batch, only used when full_repo_mode: true
+# The --full CLI flag, if passed, overrides full_repo_mode: true regardless of
+# this value; the config key lets a project default to full mode without
+# needing the flag on every invocation.
+
+# --- output ---
+output_path: metrics.json
