@@ -41,6 +41,43 @@ L2 (pattern detection) requires the `claude` CLI to be installed and on
 `PATH`. If it isn't found, L1 stats still run and are written normally; L2 is
 skipped with a warning on stderr.
 
+## Examples
+
+Full run (L1 + L2, smart-default output location):
+```bash
+python -m codebase_insights /path/to/some/repo
+```
+
+L1 only — deterministic stats, zero LLM calls, instant:
+```bash
+python -m codebase_insights /path/to/some/repo --config config-l1-only.yaml
+```
+
+L2 only — LLM pattern detection only, `l1_stats` omitted from output:
+```bash
+python -m codebase_insights /path/to/some/repo --config config-l2-only.yaml
+```
+
+Exhaustive full-repo pattern coverage instead of narrow-to-a-handful:
+```bash
+python -m codebase_insights /path/to/some/repo --full
+```
+
+Override the output location with a single fixed path instead of the
+`output/<category>/` default:
+```bash
+python -m codebase_insights /path/to/some/repo --out metrics.json
+```
+
+Combine a custom config with an explicit output path (useful for one-off
+comparison runs without touching `output/`, e.g. comparing L1-only vs.
+L2-only vs. full against the same repo):
+```bash
+python -m codebase_insights /path/to/some/repo --config config-l1-only.yaml --out /tmp/compare-l1-only.json
+python -m codebase_insights /path/to/some/repo --config config-l2-only.yaml --out /tmp/compare-l2-only.json
+python -m codebase_insights /path/to/some/repo --out /tmp/compare-full.json
+```
+
 ## Project layout
 
 Follows the same shape as `bnts-arc`'s standalone tools (e.g.
