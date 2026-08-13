@@ -75,6 +75,27 @@ def test_is_test_file_accepts_standard_test_naming_conventions():
     assert _is_test_file("foo.spec.js") is True
 
 
+def test_is_test_file_accepts_bare_tests_py_convention():
+    # Surfaced by a real-world validation run (miguelgrinberg/microblog):
+    # a single project-root tests.py (no underscore) is a legitimate, common
+    # convention that the original markers all missed.
+    from codebase_insights.stats.stats import _is_test_file
+    assert _is_test_file("tests.py") is True
+    assert _is_test_file("test.py") is True
+    assert _is_test_file("myapp/tests.py") is True
+
+
+def test_count_tests_detects_functions_in_a_bare_tests_py(tmp_path):
+    (tmp_path / "tests.py").write_text(
+        "def test_one():\n    assert True\n\n"
+        "def test_two():\n    assert True\n",
+        encoding="utf-8",
+    )
+    files = [WalkedFile(path="tests.py", language="python")]
+    result = count_tests(str(tmp_path), files)
+    assert result == {"total": 2, "framework": "pytest"}
+
+
 def test_count_tests_does_not_count_regex_test_method_calls(tmp_path):
     (tmp_path / "thing.test.js").write_text(
         "const isValid = someRegex.test(input);\n"

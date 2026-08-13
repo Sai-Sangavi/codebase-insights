@@ -31,6 +31,8 @@ def count_loc_by_language(repo_path: str, files: list[WalkedFile]) -> dict:
 
 def _is_test_file(path: str) -> bool:
     name = Path(path).name
+    if name in ("test.py", "tests.py"):
+        return True
     if name.startswith("test_"):
         return True
     stem = name.split(".")[0]
