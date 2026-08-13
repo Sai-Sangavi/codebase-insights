@@ -110,3 +110,96 @@ def analyze_category_default(
     candidates = narrow_candidates(category, description, file_paths, run_cli=run_cli)
     contents = _read_files(repo_path, candidates)
     return synthesize_pattern(category, description, contents, run_cli=run_cli)
+
+
+CATEGORY_DESCRIPTIONS = {
+    "date_handling": "how date/time objects are created and manipulated",
+    "db_connection": "how a database connection is obtained before running a query",
+    "queue_access": "how the code talks to a message queue",
+    "logging": "how a logger is obtained and configured",
+    "error_handling": "custom exception types and try/except conventions",
+    "config_loading": "how settings and environment variables are read into the app",
+}
+
+
+def describe_category(category: str) -> str:
+    return CATEGORY_DESCRIPTIONS.get(
+        category, f"how this codebase handles {category.replace('_', ' ')}"
+    )
+
+
+def _batch(items: list, size: int) -> list[list]:
+    return [items[i : i + size] for i in range(0, len(items), size)]
+
+
+def merge_batch_results(results: list[dict]) -> dict:
+    found = [r for r in results if r.get("files_examined")]
+    if not found:
+        return results[0]
+    order = {"consistent": 0, "mostly_consistent": 1, "inconsistent": 2, "unknown": 0}
+    worst = max(found, key=lambda r: order.get(r.get("consistency", "unknown"), 0))
+    merged_exceptions: list = []
+    merged_files: list = []
+    for r in found:
+        for exc in r.get("exceptions", []):
+            if exc not in merged_exceptions:
+                merged_exceptions.append(exc)
+        for f in r.get("files_examined", []):
+            if f not in merged_files:
+                merged_files.append(f)
+    return {
+        "category": found[0]["category"],
+        "summary": found[0]["summary"],
+        "example": found[0]["example"],
+        "consistency": worst["consistency"],
+        "exceptions": merged_exceptions,
+        "files_examined": merged_files,
+    }
+
+
+def analyze_category_full(
+    category: str,
+    description: str,
+    repo_path: str,
+    file_paths: list[str],
+    batch_size: int = 150,
+    run_cli=run_claude_cli,
+) -> dict:
+    batches = _batch(file_paths, batch_size)
+    results = [
+        analyze_category_default(category, description, repo_path, batch, run_cli=run_cli)
+        for batch in batches
+    ]
+    return merge_batch_results(results)
+
+
+def analyze_category(
+    category: str,
+    repo_path: str,
+    file_paths: list[str],
+    full_repo_mode: bool = False,
+    batch_size: int = 150,
+    run_cli=run_claude_cli,
+) -> dict:
+    description = describe_category(category)
+    try:
+        if full_repo_mode:
+            return analyze_category_full(
+                category, description, repo_path, file_paths,
+                batch_size=batch_size, run_cli=run_cli,
+            )
+        return analyze_category_default(category, description, repo_path, file_paths, run_cli=run_cli)
+    except ClaudeCLIError as e:
+        return {"category": category, "error": str(e)}
+
+
+def summarize_architecture(repo_path: str, file_paths: list[str], run_cli=run_claude_cli) -> str:
+    prompt = (
+        "Here is a repository's file list. In plain English, describe what each "
+        "top-level module/directory is responsible for, in a few sentences per module.\n\n"
+        + "\n".join(file_paths)
+    )
+    try:
+        return run_cli(prompt).strip()
+    except ClaudeCLIError as e:
+        return f"(architecture summary unavailable: {e})"

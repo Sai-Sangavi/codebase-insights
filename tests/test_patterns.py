@@ -114,3 +114,98 @@ def test_analyze_category_default_reads_narrowed_files_and_synthesizes(tmp_path)
     )
     assert len(calls) == 2  # one narrow call, one synthesis call
     assert result["summary"] == "Uses get_session()."
+
+
+from patterns import (
+    analyze_category,
+    describe_category,
+    merge_batch_results,
+    summarize_architecture,
+)
+
+
+def test_describe_category_known_category_uses_named_description():
+    assert "database connection" in describe_category("db_connection")
+
+
+def test_describe_category_unknown_category_falls_back_to_generic_text():
+    assert describe_category("custom_thing") == "how this codebase handles custom thing"
+
+
+def test_merge_batch_results_unions_files_and_exceptions_takes_worst_consistency():
+    results = [
+        {
+            "category": "db_connection", "summary": "uses get_session()",
+            "example": {"file": "a.py", "snippet": "..."},
+            "consistency": "consistent", "exceptions": [], "files_examined": ["a.py"],
+        },
+        {
+            "category": "db_connection", "summary": "uses get_session()",
+            "example": {"file": "a.py", "snippet": "..."},
+            "consistency": "inconsistent", "exceptions": ["b.py opens raw connection"],
+            "files_examined": ["b.py"],
+        },
+    ]
+    merged = merge_batch_results(results)
+    assert merged["consistency"] == "inconsistent"
+    assert merged["files_examined"] == ["a.py", "b.py"]
+    assert merged["exceptions"] == ["b.py opens raw connection"]
+
+
+def test_merge_batch_results_when_nothing_found_returns_first_result():
+    results = [
+        {"category": "logging", "summary": "", "example": None,
+         "consistency": "unknown", "exceptions": [], "files_examined": []},
+    ]
+    assert merge_batch_results(results) == results[0]
+
+
+def test_analyze_category_default_mode_delegates_to_narrow_and_synthesize(tmp_path):
+    (tmp_path / "a.py").write_text("import logging", encoding="utf-8")
+    calls = []
+
+    def fake_cli(prompt):
+        calls.append(prompt)
+        return '["a.py"]' if len(calls) == 1 else '{"summary": "uses logging", "example": null, "consistency": "consistent", "exceptions": []}'
+
+    result = analyze_category("logging", str(tmp_path), ["a.py"], run_cli=fake_cli)
+    assert result["summary"] == "uses logging"
+
+
+def test_analyze_category_full_mode_batches_and_merges(tmp_path):
+    for i in range(4):
+        (tmp_path / f"f{i}.py").write_text("import logging", encoding="utf-8")
+    file_paths = [f"f{i}.py" for i in range(4)]
+
+    def fake_cli(prompt):
+        # Narrow calls return the batch's own files; synthesis calls return a fixed pattern.
+        if "Respond with ONLY a JSON array" in prompt:
+            return json.dumps([p for p in file_paths if p in prompt])
+        return '{"summary": "uses logging", "example": null, "consistency": "consistent", "exceptions": []}'
+
+    result = analyze_category(
+        "logging", str(tmp_path), file_paths, full_repo_mode=True, batch_size=2, run_cli=fake_cli
+    )
+    assert result["consistency"] == "consistent"
+    assert len(result["files_examined"]) == 4
+
+
+def test_analyze_category_catches_claude_cli_error_per_category():
+    def failing_cli(prompt):
+        raise ClaudeCLIError("boom")
+
+    result = analyze_category("logging", "/unused", ["a.py"], run_cli=failing_cli)
+    assert result == {"category": "logging", "error": "boom"}
+
+
+def test_summarize_architecture_returns_cli_output_stripped():
+    result = summarize_architecture("/unused", ["a.py", "b.py"], run_cli=lambda p: "  Some summary.  \n")
+    assert result == "Some summary."
+
+
+def test_summarize_architecture_handles_cli_error_gracefully():
+    def failing_cli(prompt):
+        raise ClaudeCLIError("boom")
+
+    result = summarize_architecture("/unused", ["a.py"], run_cli=failing_cli)
+    assert "unavailable" in result
