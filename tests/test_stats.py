@@ -43,3 +43,42 @@ def test_count_tests_with_no_test_files_returns_zero():
     files = [WalkedFile(path="main.py", language="python")]
     result = count_tests("/unused", files)
     assert result == {"total": 0, "framework": None}
+
+
+def test_count_tests_detects_jest_style_functions(tmp_path):
+    (tmp_path / "thing.test.js").write_text(
+        "describe('suite', () => {\n"
+        "  it('does a thing', () => { expect(1).toBe(1); });\n"
+        "  test('does another', () => { expect(2).toBe(2); });\n"
+        "});\n",
+        encoding="utf-8",
+    )
+    files = [WalkedFile(path="thing.test.js", language="javascript")]
+    result = count_tests(str(tmp_path), files)
+    assert result == {"total": 2, "framework": "jest"}
+
+
+def test_is_test_file_rejects_filenames_with_test_as_mid_word_substring():
+    from stats import _is_test_file
+    assert _is_test_file("contest_winners.py") is False
+    assert _is_test_file("latest_data.py") is False
+    assert _is_test_file("attestation_service.py") is False
+
+
+def test_is_test_file_accepts_standard_test_naming_conventions():
+    from stats import _is_test_file
+    assert _is_test_file("test_thing.py") is True
+    assert _is_test_file("thing_test.py") is True
+    assert _is_test_file("foo.test.js") is True
+    assert _is_test_file("foo.spec.js") is True
+
+
+def test_count_tests_does_not_count_regex_test_method_calls(tmp_path):
+    (tmp_path / "thing.test.js").write_text(
+        "const isValid = someRegex.test(input);\n"
+        "test('a real test', () => { expect(isValid).toBe(true); });\n",
+        encoding="utf-8",
+    )
+    files = [WalkedFile(path="thing.test.js", language="javascript")]
+    result = count_tests(str(tmp_path), files)
+    assert result == {"total": 1, "framework": "jest"}

@@ -30,7 +30,14 @@ def count_loc_by_language(repo_path: str, files: list[WalkedFile]) -> dict:
 
 def _is_test_file(path: str) -> bool:
     name = Path(path).name
-    return any(marker in name for marker in TEST_FILENAME_MARKERS)
+    if name.startswith("test_"):
+        return True
+    stem = name.split(".")[0]
+    if stem.endswith("_test"):
+        return True
+    if ".test." in name or ".spec." in name:
+        return True
+    return False
 
 
 def count_tests(repo_path: str, files: list[WalkedFile]) -> dict:
@@ -50,7 +57,7 @@ def count_tests(repo_path: str, files: list[WalkedFile]) -> dict:
             if matches:
                 framework = framework or "pytest"
         else:
-            matches = re.findall(r"\b(?:it|test)\(", text)
+            matches = re.findall(r"(?<!\.)\b(?:it|test)\(", text)
             total += len(matches)
             if matches:
                 framework = framework or "jest"
