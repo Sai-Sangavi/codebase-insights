@@ -24,16 +24,20 @@ def test_main_writes_metrics_json_with_l1_stats(tmp_path, monkeypatch):
     repo = _make_minimal_repo(tmp_path)
     out_path = tmp_path / "metrics.json"
     monkeypatch.chdir(tmp_path)
+    monkeypatch.setattr(
+        analyze, "collect_l2_patterns", lambda repo_path, files, config: None
+    )
     exit_code = main([str(repo), "--out", str(out_path)])
     assert exit_code == 0
     metrics = json.loads(out_path.read_text(encoding="utf-8"))
     assert metrics["repo_path"] == str(repo.resolve())
     assert metrics["l1_stats"]["file_counts_by_language"]["python"] == 2
     assert metrics["l1_stats"]["test_counts"]["total"] == 1
-    assert "l2_patterns" not in metrics  # L2 not wired yet in this task
+    assert "l2_patterns" not in metrics
 
 
-def test_main_returns_1_on_malformed_config(tmp_path, capsys):
+def test_main_returns_1_on_malformed_config(tmp_path, monkeypatch, capsys):
+    monkeypatch.chdir(tmp_path)
     repo = _make_minimal_repo(tmp_path)
     bad_config = tmp_path / "bad_config.yaml"
     bad_config.write_text("nonexistent_key: true\n", encoding="utf-8")
@@ -42,7 +46,8 @@ def test_main_returns_1_on_malformed_config(tmp_path, capsys):
     assert "unknown config key" in capsys.readouterr().err
 
 
-def test_main_returns_1_when_repo_path_does_not_exist(tmp_path, capsys):
+def test_main_returns_1_when_repo_path_does_not_exist(tmp_path, monkeypatch, capsys):
+    monkeypatch.chdir(tmp_path)
     exit_code = main([str(tmp_path / "does-not-exist")])
     assert exit_code == 1
     assert "does not exist" in capsys.readouterr().err

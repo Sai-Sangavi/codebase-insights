@@ -1,21 +1,49 @@
 import json
+import shutil
 import subprocess
 
 import pytest
 
 from patterns import ClaudeCLIError, narrow_candidates, run_claude_cli
 
+FAKE_CLAUDE_PATH = r"C:\fake\bin\claude.CMD"
 
-def test_run_claude_cli_returns_stdout_on_success(monkeypatch):
-    def fake_run(cmd, capture_output, text, timeout):
+
+@pytest.fixture
+def resolved_claude(monkeypatch):
+    """Make shutil.which("claude") resolve to a fixed fake path."""
+    monkeypatch.setattr(shutil, "which", lambda name: FAKE_CLAUDE_PATH)
+    return FAKE_CLAUDE_PATH
+
+
+def test_run_claude_cli_returns_stdout_on_success(monkeypatch, resolved_claude):
+    def fake_run(cmd, input, capture_output, text, timeout):
         return subprocess.CompletedProcess(cmd, returncode=0, stdout="hello", stderr="")
 
     monkeypatch.setattr(subprocess, "run", fake_run)
     assert run_claude_cli("prompt") == "hello"
 
 
-def test_run_claude_cli_raises_on_nonzero_exit(monkeypatch):
-    def fake_run(cmd, capture_output, text, timeout):
+def test_run_claude_cli_invokes_resolved_path_with_prompt_on_stdin(monkeypatch, resolved_claude):
+    seen = {}
+
+    def fake_run(cmd, input, capture_output, text, timeout):
+        seen["cmd"] = cmd
+        seen["input"] = input
+        return subprocess.CompletedProcess(cmd, returncode=0, stdout="hello", stderr="")
+
+    monkeypatch.setattr(subprocess, "run", fake_run)
+    run_claude_cli("a very long prompt")
+    # The resolved path is used (not the bare name, which never resolves to
+    # claude.CMD on Windows), and the prompt goes via stdin, not argv, so it
+    # can't blow the OS argv-length limit.
+    assert seen["cmd"] == [FAKE_CLAUDE_PATH, "-p"]
+    assert seen["input"] == "a very long prompt"
+    assert "a very long prompt" not in seen["cmd"]
+
+
+def test_run_claude_cli_raises_on_nonzero_exit(monkeypatch, resolved_claude):
+    def fake_run(cmd, input, capture_output, text, timeout):
         return subprocess.CompletedProcess(cmd, returncode=1, stdout="", stderr="boom")
 
     monkeypatch.setattr(subprocess, "run", fake_run)
@@ -23,8 +51,8 @@ def test_run_claude_cli_raises_on_nonzero_exit(monkeypatch):
         run_claude_cli("prompt")
 
 
-def test_run_claude_cli_raises_on_timeout(monkeypatch):
-    def fake_run(cmd, capture_output, text, timeout):
+def test_run_claude_cli_raises_on_timeout(monkeypatch, resolved_claude):
+    def fake_run(cmd, input, capture_output, text, timeout):
         raise subprocess.TimeoutExpired(cmd, timeout)
 
     monkeypatch.setattr(subprocess, "run", fake_run)
@@ -32,12 +60,23 @@ def test_run_claude_cli_raises_on_timeout(monkeypatch):
         run_claude_cli("prompt", timeout=5)
 
 
-def test_run_claude_cli_propagates_file_not_found(monkeypatch):
-    def fake_run(cmd, capture_output, text, timeout):
+def test_run_claude_cli_propagates_file_not_found(monkeypatch, resolved_claude):
+    def fake_run(cmd, input, capture_output, text, timeout):
         raise FileNotFoundError("no such file: claude")
 
     monkeypatch.setattr(subprocess, "run", fake_run)
     with pytest.raises(FileNotFoundError):
+        run_claude_cli("prompt")
+
+
+def test_run_claude_cli_raises_file_not_found_when_which_finds_nothing(monkeypatch):
+    monkeypatch.setattr(shutil, "which", lambda name: None)
+
+    def unreachable_run(*args, **kwargs):  # pragma: no cover - must not be called
+        raise AssertionError("subprocess.run must not be called when which() fails")
+
+    monkeypatch.setattr(subprocess, "run", unreachable_run)
+    with pytest.raises(FileNotFoundError, match="not found on PATH"):
         run_claude_cli("prompt")
 
 

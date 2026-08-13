@@ -1,6 +1,7 @@
 """L2 pattern detection: shells out to the Claude Code CLI per category."""
 
 import json
+import shutil
 import subprocess
 from pathlib import Path
 
@@ -9,10 +10,20 @@ class ClaudeCLIError(Exception):
     """Raised when the claude CLI is present but the call fails or times out."""
 
 
-def run_claude_cli(prompt: str, timeout: int = 60) -> str:
+def run_claude_cli(prompt: str, timeout: int = 120) -> str:
+    """Invoke the claude CLI with the prompt on stdin.
+
+    The executable is resolved via shutil.which because subprocess.run only
+    appends .exe to a bare name on Windows, where the installed CLI is
+    claude.CMD. Raises FileNotFoundError if it can't be resolved — callers
+    (analyze.py) depend on that propagating uncaught.
+    """
+    claude_path = shutil.which("claude")
+    if claude_path is None:
+        raise FileNotFoundError("claude CLI not found on PATH")
     try:
         result = subprocess.run(
-            ["claude", "-p", prompt], capture_output=True, text=True, timeout=timeout
+            [claude_path, "-p"], input=prompt, capture_output=True, text=True, timeout=timeout
         )
     except subprocess.TimeoutExpired as e:
         raise ClaudeCLIError(f"claude CLI timed out after {timeout}s") from e
