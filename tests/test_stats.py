@@ -116,3 +116,40 @@ def test_inventory_config_files_finds_known_files(tmp_path):
     result = inventory_config_files(str(tmp_path))
     assert "Dockerfile" in result
     assert ".github/workflows/ci.yml" in result
+
+
+def test_inventory_dependency_manifests_skips_malformed_package_json(tmp_path):
+    (tmp_path / "package.json").write_text("{ this is not valid json", encoding="utf-8")
+    result = inventory_dependency_manifests(str(tmp_path))
+    assert result == []
+
+
+def test_count_pyproject_toml_single_line_array():
+    from stats import _count_pyproject_toml
+    text = 'dependencies = ["requests>=2.31", "click>=8"]\nclassifiers = ["A", "B", "C"]\n'
+    assert _count_pyproject_toml(text) == 2
+
+
+def test_count_pyproject_toml_multi_line_array():
+    from stats import _count_pyproject_toml
+    text = (
+        "dependencies = [\n"
+        '    "requests>=2.31",\n'
+        '    "click>=8",\n'
+        "]\n"
+    )
+    assert _count_pyproject_toml(text) == 2
+
+
+def test_count_pyproject_toml_poetry_style_table():
+    from stats import _count_pyproject_toml
+    text = (
+        "[tool.poetry.dependencies]\n"
+        'python = "^3.12"\n'
+        'requests = "^2.31"\n'
+        'click = "^8.0"\n'
+        "\n"
+        "[tool.poetry.dev-dependencies]\n"
+        'pytest = "^7.4"\n'
+    )
+    assert _count_pyproject_toml(text) == 2  # python excluded, dev-dependencies section not counted

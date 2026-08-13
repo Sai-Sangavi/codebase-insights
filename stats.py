@@ -65,6 +65,9 @@ def count_tests(repo_path: str, files: list[WalkedFile]) -> dict:
     return {"total": total, "framework": framework}
 
 
+_PARSE_FAILED = object()
+
+
 def _count_requirements_txt(text: str) -> int:
     return len([
         line for line in text.splitlines()
@@ -73,27 +76,51 @@ def _count_requirements_txt(text: str) -> int:
 
 
 def _count_pyproject_toml(text: str) -> int:
+    """Heuristic line-based counter -- not a full TOML parse. Handles PEP 621
+    dependencies = [...] arrays (single- or multi-line) and Poetry-style
+    [tool.poetry.dependencies] tables. Real edge cases (inline tables,
+    dependency groups, environment markers) are out of scope for this stat."""
+    lines = text.splitlines()
     count = 0
-    in_deps = False
-    for line in text.splitlines():
-        stripped = line.strip()
-        if stripped.startswith("dependencies") and "=" in stripped:
-            in_deps = True
-            continue
-        if in_deps:
-            if stripped.startswith("]"):
-                in_deps = False
+    i = 0
+    n = len(lines)
+    while i < n:
+        stripped = lines[i].strip()
+
+        if re.match(r"dependencies\s*=\s*\[", stripped):
+            if "]" in stripped:
+                inner = stripped[stripped.index("[") + 1 : stripped.rindex("]")]
+                count += len(re.findall(r"['\"][^'\"]+['\"]", inner))
+                i += 1
                 continue
-            if stripped.startswith('"') or stripped.startswith("'"):
-                count += 1
+            i += 1
+            while i < n and "]" not in lines[i]:
+                if re.search(r"['\"][^'\"]+['\"]", lines[i]):
+                    count += 1
+                i += 1
+            i += 1  # skip the closing "]" line
+            continue
+
+        if stripped == "[tool.poetry.dependencies]":
+            i += 1
+            while i < n and not lines[i].strip().startswith("["):
+                entry = lines[i].strip()
+                if entry and "=" in entry and not entry.startswith("#"):
+                    key = entry.split("=", 1)[0].strip()
+                    if key != "python":  # interpreter constraint, not a real dependency
+                        count += 1
+                i += 1
+            continue
+
+        i += 1
     return count
 
 
-def _count_package_json(text: str) -> int:
+def _count_package_json(text: str):
     try:
         data = json.loads(text)
     except json.JSONDecodeError:
-        return 0
+        return _PARSE_FAILED
     return len(data.get("dependencies", {})) + len(data.get("devDependencies", {}))
 
 
@@ -115,7 +142,10 @@ def inventory_dependency_manifests(repo_path: str) -> list[dict]:
             text = path.read_text(encoding="utf-8")
         except (UnicodeDecodeError, OSError):
             continue
-        results.append({"file": filename, "count": counter(text)})
+        count = counter(text)
+        if count is _PARSE_FAILED:
+            continue
+        results.append({"file": filename, "count": count})
     return results
 
 
