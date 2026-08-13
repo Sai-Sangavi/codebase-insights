@@ -8,7 +8,7 @@ from pathlib import Path
 
 from config import ConfigError, get_effective_excludes, load_config
 from file_walker import walk_files
-from patterns import analyze_category, summarize_architecture
+from llm.patterns import analyze_category, summarize_architecture
 from report import render_markdown
 from stats import (
     check_pr_templates,

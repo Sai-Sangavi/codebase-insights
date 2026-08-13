@@ -28,6 +28,22 @@ L2 (pattern detection) requires the `claude` CLI to be installed and on
 `PATH`. If it isn't found, L1 stats still run and are written normally; L2 is
 skipped with a warning on stderr.
 
+## Project layout
+
+```
+analyze.py       # entrypoint / orchestrator
+config.py        # config loading (deterministic)
+file_walker.py   # file enumeration + exclude/language handling (deterministic)
+stats.py         # L1 stats (deterministic)
+report.py        # metrics.json -> metrics.md renderer (deterministic)
+llm/
+  patterns.py    # L2 pattern detection -- the only module that shells out to Claude CLI
+```
+
+Everything outside `llm/` is deterministic and has no LLM dependency;
+`llm/patterns.py` is the sole boundary where the tool talks to the Claude
+Code CLI.
+
 ## Development
 
 ```bash

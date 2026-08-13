@@ -4,7 +4,7 @@ import subprocess
 
 import pytest
 
-from patterns import ClaudeCLIError, narrow_candidates, run_claude_cli
+from llm.patterns import ClaudeCLIError, narrow_candidates, run_claude_cli
 
 FAKE_CLAUDE_PATH = r"C:\fake\bin\claude.CMD"
 
@@ -120,7 +120,7 @@ def test_narrow_candidates_returns_empty_list_on_unparseable_output():
 
 
 def test_synthesize_pattern_parses_full_json_response():
-    from patterns import synthesize_pattern
+    from llm.patterns import synthesize_pattern
 
     def fake_cli(prompt):
         return json.dumps({
@@ -141,7 +141,7 @@ def test_synthesize_pattern_parses_full_json_response():
 
 
 def test_synthesize_pattern_with_no_candidates_returns_unknown():
-    from patterns import synthesize_pattern
+    from llm.patterns import synthesize_pattern
 
     result = synthesize_pattern(
         "db_connection", "how DB connections are obtained", {}, run_cli=lambda p: "{}"
@@ -151,7 +151,7 @@ def test_synthesize_pattern_with_no_candidates_returns_unknown():
 
 
 def test_analyze_category_default_reads_narrowed_files_and_synthesizes(tmp_path):
-    from patterns import analyze_category_default
+    from llm.patterns import analyze_category_default
 
     (tmp_path / "db").mkdir()
     (tmp_path / "db" / "session.py").write_text("def get_session(): ...", encoding="utf-8")
@@ -175,7 +175,7 @@ def test_analyze_category_default_reads_narrowed_files_and_synthesizes(tmp_path)
     assert result["summary"] == "Uses get_session()."
 
 
-from patterns import (
+from llm.patterns import (
     analyze_category,
     describe_category,
     merge_batch_results,
