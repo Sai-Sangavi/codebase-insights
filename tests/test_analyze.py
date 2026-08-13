@@ -102,9 +102,10 @@ def test_main_omits_l2_patterns_when_claude_cli_missing(tmp_path, monkeypatch, c
     def raise_missing(repo_path, files, config):
         raise FileNotFoundError("no claude on PATH")
 
-    monkeypatch.setattr(analyze, "collect_l2_patterns_raw", raise_missing, raising=False)
-    monkeypatch.setattr(analyze, "_run_l2_or_none", lambda repo_path, files, config: None)
+    monkeypatch.setattr(analyze, "collect_l2_patterns", raise_missing)
     exit_code = main([str(repo), "--out", str(out_path)])
     assert exit_code == 0
     metrics = json.loads(out_path.read_text(encoding="utf-8"))
     assert "l2_patterns" not in metrics
+    err = capsys.readouterr().err
+    assert "claude CLI not found" in err
