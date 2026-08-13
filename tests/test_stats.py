@@ -209,3 +209,36 @@ def test_check_pr_templates_true_when_present(tmp_path):
 
 def test_check_pr_templates_false_when_absent(tmp_path):
     assert check_pr_templates(str(tmp_path)) is False
+
+
+def test_git_metadata_repo_age_uses_oldest_commit_not_newest(tmp_path):
+    import os
+    subprocess.run(["git", "init"], cwd=tmp_path, check=True, capture_output=True)
+    subprocess.run(["git", "config", "user.email", "test@example.com"], cwd=tmp_path, check=True)
+    subprocess.run(["git", "config", "user.name", "Test"], cwd=tmp_path, check=True)
+
+    old_env = {**os.environ, "GIT_AUTHOR_DATE": "2020-01-01T00:00:00", "GIT_COMMITTER_DATE": "2020-01-01T00:00:00"}
+    (tmp_path / "old.txt").write_text("old", encoding="utf-8")
+    subprocess.run(["git", "add", "."], cwd=tmp_path, check=True, capture_output=True)
+    subprocess.run(["git", "commit", "-m", "old commit"], cwd=tmp_path, check=True, capture_output=True, env=old_env)
+
+    (tmp_path / "new.txt").write_text("new", encoding="utf-8")
+    subprocess.run(["git", "add", "."], cwd=tmp_path, check=True, capture_output=True)
+    subprocess.run(["git", "commit", "-m", "new commit"], cwd=tmp_path, check=True, capture_output=True)
+
+    result = git_metadata(str(tmp_path))
+    assert result["repo_age_days"] > 365 * 4  # measured from the 2020 commit, not "now"
+
+
+def test_detect_branch_strategy_does_not_falsely_match_similar_branch_names(tmp_path):
+    _init_git_repo(tmp_path, ["feat: first"])
+    subprocess.run(["git", "branch", "developer-notes"], cwd=tmp_path, check=True, capture_output=True)
+    subprocess.run(["git", "branch", "release-checklist"], cwd=tmp_path, check=True, capture_output=True)
+    result = detect_branch_strategy(str(tmp_path))
+    assert result["signal"] != "gitflow"
+
+
+def test_run_git_returns_empty_string_when_repo_path_does_not_exist():
+    from stats import _run_git
+    result = _run_git("/this/path/does/not/exist", ["log"])
+    assert result == ""

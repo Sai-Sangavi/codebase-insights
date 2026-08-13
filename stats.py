@@ -178,9 +178,12 @@ def inventory_config_files(repo_path: str) -> list[str]:
 
 
 def _run_git(repo_path: str, args: list[str]) -> str:
-    result = subprocess.run(
-        ["git", *args], cwd=repo_path, capture_output=True, text=True, timeout=30
-    )
+    try:
+        result = subprocess.run(
+            ["git", *args], cwd=repo_path, capture_output=True, text=True, timeout=30
+        )
+    except (FileNotFoundError, OSError):
+        return ""
     if result.returncode != 0:
         return ""
     return result.stdout.strip()
@@ -193,11 +196,14 @@ def git_metadata(repo_path: str) -> dict:
     contributors_raw = _run_git(repo_path, ["shortlog", "-sn", "--all"])
     contributors = len([line for line in contributors_raw.splitlines() if line.strip()])
 
-    first_commit_epoch = _run_git(repo_path, ["log", "--reverse", "--format=%at", "-1"])
+    all_timestamps_raw = _run_git(repo_path, ["log", "--format=%at"])
+    timestamps = [line for line in all_timestamps_raw.splitlines() if line.strip()]
     repo_age_days = 0
-    if first_commit_epoch.isdigit():
-        first_commit = datetime.fromtimestamp(int(first_commit_epoch), tz=timezone.utc)
-        repo_age_days = (datetime.now(tz=timezone.utc) - first_commit).days
+    if timestamps:
+        first_commit_epoch = timestamps[-1]  # oldest commit — log defaults to newest-first
+        if first_commit_epoch.isdigit():
+            first_commit = datetime.fromtimestamp(int(first_commit_epoch), tz=timezone.utc)
+            repo_age_days = (datetime.now(tz=timezone.utc) - first_commit).days
 
     return {
         "commit_count": commit_count,
@@ -232,7 +238,7 @@ def detect_branch_strategy(repo_path: str) -> dict:
         for b in branches_raw.splitlines() if b.strip()
     ]
     gitflow_markers = ("develop", "release", "hotfix")
-    if any(b.startswith(marker) for b in branches for marker in gitflow_markers):
+    if any(b == marker or b.startswith(marker + "/") for b in branches for marker in gitflow_markers):
         return {"signal": "gitflow"}
     if len(set(branches)) <= 2:
         return {"signal": "trunk_based"}
