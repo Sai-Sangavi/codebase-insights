@@ -2,7 +2,9 @@
 
 import json
 import re
+import subprocess
 from collections import Counter
+from datetime import datetime, timezone
 from pathlib import Path
 
 from file_walker import WalkedFile
@@ -173,3 +175,75 @@ def inventory_config_files(repo_path: str) -> list[str]:
         elif target.is_file():
             found.append(candidate)
     return found
+
+
+def _run_git(repo_path: str, args: list[str]) -> str:
+    result = subprocess.run(
+        ["git", *args], cwd=repo_path, capture_output=True, text=True, timeout=30
+    )
+    if result.returncode != 0:
+        return ""
+    return result.stdout.strip()
+
+
+def git_metadata(repo_path: str) -> dict:
+    commit_count_raw = _run_git(repo_path, ["rev-list", "--count", "HEAD"])
+    commit_count = int(commit_count_raw) if commit_count_raw.isdigit() else 0
+
+    contributors_raw = _run_git(repo_path, ["shortlog", "-sn", "--all"])
+    contributors = len([line for line in contributors_raw.splitlines() if line.strip()])
+
+    first_commit_epoch = _run_git(repo_path, ["log", "--reverse", "--format=%at", "-1"])
+    repo_age_days = 0
+    if first_commit_epoch.isdigit():
+        first_commit = datetime.fromtimestamp(int(first_commit_epoch), tz=timezone.utc)
+        repo_age_days = (datetime.now(tz=timezone.utc) - first_commit).days
+
+    return {
+        "commit_count": commit_count,
+        "contributors": contributors,
+        "repo_age_days": repo_age_days,
+    }
+
+
+_CONVENTIONAL_COMMIT_RE = re.compile(
+    r"^(feat|fix|docs|chore|refactor|test|style|perf|build|ci)(\(.+\))?:\s"
+)
+
+
+def detect_commit_convention(repo_path: str) -> dict:
+    log = _run_git(repo_path, ["log", "-50", "--format=%s"])
+    messages = [line for line in log.splitlines() if line.strip()]
+    if not messages:
+        return {"detected": "unknown", "confidence": "low"}
+    matching = sum(1 for m in messages if _CONVENTIONAL_COMMIT_RE.match(m))
+    ratio = matching / len(messages)
+    if ratio >= 0.7:
+        return {"detected": "conventional_commits", "confidence": "high"}
+    if ratio >= 0.3:
+        return {"detected": "conventional_commits", "confidence": "medium"}
+    return {"detected": "none", "confidence": "high"}
+
+
+def detect_branch_strategy(repo_path: str) -> dict:
+    branches_raw = _run_git(repo_path, ["branch", "-a"])
+    branches = [
+        b.strip().lstrip("* ").replace("remotes/origin/", "")
+        for b in branches_raw.splitlines() if b.strip()
+    ]
+    gitflow_markers = ("develop", "release", "hotfix")
+    if any(b.startswith(marker) for b in branches for marker in gitflow_markers):
+        return {"signal": "gitflow"}
+    if len(set(branches)) <= 2:
+        return {"signal": "trunk_based"}
+    return {"signal": "unclear"}
+
+
+def check_pr_templates(repo_path: str) -> bool:
+    root = Path(repo_path)
+    candidates = [
+        ".github/PULL_REQUEST_TEMPLATE.md",
+        ".github/ISSUE_TEMPLATE",
+        "PULL_REQUEST_TEMPLATE.md",
+    ]
+    return any((root / c).exists() for c in candidates)

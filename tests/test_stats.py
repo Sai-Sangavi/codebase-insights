@@ -153,3 +153,59 @@ def test_count_pyproject_toml_poetry_style_table():
         'pytest = "^7.4"\n'
     )
     assert _count_pyproject_toml(text) == 2  # python excluded, dev-dependencies section not counted
+
+
+import subprocess
+
+from stats import (
+    check_pr_templates,
+    detect_branch_strategy,
+    detect_commit_convention,
+    git_metadata,
+)
+
+
+def _init_git_repo(path, commit_messages):
+    subprocess.run(["git", "init"], cwd=path, check=True, capture_output=True)
+    subprocess.run(["git", "config", "user.email", "test@example.com"], cwd=path, check=True)
+    subprocess.run(["git", "config", "user.name", "Test"], cwd=path, check=True)
+    for i, message in enumerate(commit_messages):
+        (path / f"file{i}.txt").write_text(str(i), encoding="utf-8")
+        subprocess.run(["git", "add", "."], cwd=path, check=True, capture_output=True)
+        subprocess.run(["git", "commit", "-m", message], cwd=path, check=True, capture_output=True)
+
+
+def test_git_metadata_reports_commit_count_and_contributors(tmp_path):
+    _init_git_repo(tmp_path, ["feat: first", "fix: second"])
+    result = git_metadata(str(tmp_path))
+    assert result["commit_count"] == 2
+    assert result["contributors"] == 1
+    assert result["repo_age_days"] >= 0
+
+
+def test_detect_commit_convention_high_confidence_when_mostly_conventional(tmp_path):
+    _init_git_repo(tmp_path, ["feat: a", "fix: b", "chore: c", "random message"])
+    result = detect_commit_convention(str(tmp_path))
+    assert result == {"detected": "conventional_commits", "confidence": "high"}
+
+
+def test_detect_commit_convention_none_when_not_conventional(tmp_path):
+    _init_git_repo(tmp_path, ["did a thing", "did another thing"])
+    result = detect_commit_convention(str(tmp_path))
+    assert result == {"detected": "none", "confidence": "high"}
+
+
+def test_detect_branch_strategy_trunk_based_with_single_branch(tmp_path):
+    _init_git_repo(tmp_path, ["feat: first"])
+    result = detect_branch_strategy(str(tmp_path))
+    assert result == {"signal": "trunk_based"}
+
+
+def test_check_pr_templates_true_when_present(tmp_path):
+    (tmp_path / ".github").mkdir()
+    (tmp_path / ".github" / "PULL_REQUEST_TEMPLATE.md").write_text("template", encoding="utf-8")
+    assert check_pr_templates(str(tmp_path)) is True
+
+
+def test_check_pr_templates_false_when_absent(tmp_path):
+    assert check_pr_templates(str(tmp_path)) is False
