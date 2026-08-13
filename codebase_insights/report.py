@@ -1,9 +1,20 @@
-"""Render a metrics dict into a human-readable Markdown report."""
+"""Render a metrics dict into a human-readable Markdown report.
+
+This is the "make it actually readable" step -- metrics.json is the machine-
+readable source of truth, metrics.md (built by this one function) is what a
+person actually opens. No logic here computes anything new; it purely
+formats what's already in the dict that runner.py assembled.
+"""
 
 
 def render_markdown(metrics: dict) -> str:
     lines = [f"# Codebase Report: {metrics['repo_path']}", ""]
 
+    # l1_stats is entirely absent (not just empty) for an L2-only run
+    # (skip_l1: true) -- checking "in metrics" rather than defaulting to {}
+    # is what lets this function skip the Stack/Tests/Git sections cleanly
+    # instead of rendering misleading "0 tests, 0 commits" for stats that
+    # were never computed at all.
     if "l1_stats" in metrics:
         l1 = metrics["l1_stats"]
 
@@ -30,12 +41,19 @@ def render_markdown(metrics: dict) -> str:
             "",
         ]
 
+    # l2_patterns can be entirely absent too (claude CLI unavailable, or
+    # skipped via config) -- `if l2:` handles both "key missing" and
+    # "key present but None/empty" in one check.
     l2 = metrics.get("l2_patterns")
     if l2:
         lines += ["## Patterns", ""]
         for category, data in l2.get("categories", {}).items():
             title = category.replace("_", " ").title()
             lines.append(f"### {title}")
+            # A category that hit a ClaudeCLIError (see llm/patterns.py's
+            # analyze_category) has an "error" key instead of the normal
+            # summary/consistency/example shape -- render that distinctly
+            # rather than crashing on missing keys.
             if "error" in data:
                 lines.append(f"_Error: {data['error']}_")
             else:
@@ -49,6 +67,9 @@ def render_markdown(metrics: dict) -> str:
                 for exc in data.get("exceptions", []):
                     lines.append(f"- **Exception:** {exc}")
             lines.append("")
+        # architecture_summary is free text (not per-category), rendered as
+        # its own section only if the pass actually ran (config's
+        # architecture_summary: true) and produced something.
         if l2.get("architecture_summary"):
             lines += ["## Architecture", "", l2["architecture_summary"], ""]
 

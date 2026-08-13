@@ -1,4 +1,11 @@
-"""Orchestration: load config, walk the repo, compute L1 + L2, write outputs."""
+"""Orchestration: load config, walk the repo, compute L1 + L2, write outputs.
+
+This is the module that ties everything else together. cli.py only parses
+argv and calls run() below -- all the actual "what does one invocation of
+codebase-insights do" logic lives here. Reading this file top-to-bottom
+(collect_l1_stats -> collect_l2_patterns -> run) is the fastest way to
+understand the whole tool's control flow.
+"""
 
 import json
 import sys
@@ -28,6 +35,10 @@ _PACKAGE_ROOT = Path(__file__).resolve().parent.parent
 
 
 def collect_l1_stats(repo_path: str, files: list) -> dict:
+    """Assemble every L1 (deterministic, no-LLM) stat into one dict -- this
+    IS the "l1_stats" key in the final output. Every function called here
+    lives in stats/stats.py; this function's only job is gluing their
+    results together under one shape."""
     return {
         "file_counts_by_language": count_files_by_language(files),
         "loc_by_language": count_loc_by_language(repo_path, files),
@@ -42,8 +53,15 @@ def collect_l1_stats(repo_path: str, files: list) -> dict:
 
 
 def collect_l2_patterns(repo_path: str, files: list, config: dict) -> dict:
-    """Raises FileNotFoundError if the claude CLI isn't on PATH — caller decides
-    what that means (run()'s below skips L2 entirely and warns)."""
+    """Assemble every L2 (LLM-based) finding -- one analyze_category() call
+    per entry in config["pattern_categories"], plus the architecture-summary
+    pass if enabled. This is where config drives which categories actually
+    run: an empty pattern_categories list just produces an empty categories
+    dict below with zero LLM calls made.
+
+    Raises FileNotFoundError if the claude CLI isn't on PATH — caller decides
+    what that means (run()'s below skips L2 entirely and warns).
+    """
     file_paths = [f.path for f in files]
     categories = {
         category: analyze_category(
@@ -65,6 +83,11 @@ def collect_l2_patterns(repo_path: str, files: list, config: dict) -> dict:
 
 
 def _run_l2_or_none(repo_path: str, files: list, config: dict) -> dict | None:
+    """The ONE place FileNotFoundError (claude CLI missing entirely) gets
+    caught -- turns "no claude installed" into a single stderr warning and a
+    None result, rather than a crash. run() below treats None as "omit
+    l2_patterns from the output entirely", so a machine without Claude Code
+    installed still gets a complete, correct L1-only result."""
     try:
         return collect_l2_patterns(repo_path, files, config)
     except FileNotFoundError:
@@ -107,6 +130,25 @@ def run(
     full: bool = False,
     out: str | None = None,
 ) -> int:
+    """The whole pipeline for one invocation, called by cli.main() with the
+    already-parsed argv values. Returns a process exit code (0 success,
+    1 any handled failure) -- never raises for expected failure modes.
+
+    Order of operations, and why:
+      1. Validate repo_path FIRST, before touching config -- a typo'd path
+         should fail immediately, not after loading config successfully.
+      2. Load + validate config -- fails fast on a bad config.yaml before
+         any file-walking or LLM calls happen.
+      3. Walk the repo once -- both L1 and L2 need this same file list.
+      4. Run L2 before assembling L1 into `metrics` -- purely an ordering
+         choice in the code below (L2 is the slow part; computing it first
+         means the L1 dict-literal construction happens right before the
+         write, not that L1 depends on L2 in any way).
+      5. Only include l1_stats/l2_patterns in the output dict if they
+         actually ran (skip_l1 config, or L2 returning None) -- the report
+         renderer and downstream consumers treat an absent key as "this
+         level wasn't computed", not as a zero/empty result.
+    """
     repo = Path(repo_path)
     if not repo.is_dir():
         print(f"error: repo_path does not exist or is not a directory: {repo_path}", file=sys.stderr)
@@ -118,6 +160,9 @@ def run(
         print(f"error: {e}", file=sys.stderr)
         return 1
 
+    # --full CLI flag always wins over config.yaml's full_repo_mode, so a
+    # project can default to full mode in its config while still letting
+    # someone request the fast/narrow mode without editing that file.
     if full:
         config["full_repo_mode"] = True
 
@@ -138,6 +183,9 @@ def run(
     if l2_patterns is not None:
         metrics["l2_patterns"] = l2_patterns
 
+    # --out (or config's output_path) always wins over the smart default --
+    # a single fixed path, .md derived by swapping the extension. Otherwise,
+    # fall through to _default_output_paths' output/<category>/ scheme.
     explicit_out = out or config["output_path"]
     if explicit_out:
         output_path = Path(explicit_out)
