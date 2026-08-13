@@ -133,6 +133,15 @@ def _batch(items: list, size: int) -> list[list]:
 
 
 def merge_batch_results(results: list[dict]) -> dict:
+    if not results:
+        return {
+            "category": None,
+            "summary": "No candidate files found for this pattern.",
+            "example": None,
+            "consistency": "unknown",
+            "exceptions": [],
+            "files_examined": [],
+        }
     found = [r for r in results if r.get("files_examined")]
     if not found:
         return results[0]
@@ -166,6 +175,8 @@ def analyze_category_full(
     run_cli=run_claude_cli,
 ) -> dict:
     batches = _batch(file_paths, batch_size)
+    if not batches:
+        return synthesize_pattern(category, description, {}, run_cli=run_cli)
     results = [
         analyze_category_default(category, description, repo_path, batch, run_cli=run_cli)
         for batch in batches

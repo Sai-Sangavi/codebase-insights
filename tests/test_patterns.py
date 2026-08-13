@@ -209,3 +209,33 @@ def test_summarize_architecture_handles_cli_error_gracefully():
 
     result = summarize_architecture("/unused", ["a.py"], run_cli=failing_cli)
     assert "unavailable" in result
+
+
+def test_analyze_category_full_mode_with_empty_file_list_does_not_crash():
+    result = analyze_category("logging", "/unused", [], full_repo_mode=True, run_cli=lambda p: "[]")
+    assert result["consistency"] == "unknown"
+    assert result["files_examined"] == []
+
+
+def test_merge_batch_results_with_empty_results_list_does_not_crash():
+    result = merge_batch_results([])
+    assert result["consistency"] == "unknown"
+    assert result["files_examined"] == []
+
+
+def test_analyze_category_full_mode_with_non_evenly_divisible_batch_boundary(tmp_path):
+    for i in range(5):
+        (tmp_path / f"f{i}.py").write_text("import logging", encoding="utf-8")
+    file_paths = [f"f{i}.py" for i in range(5)]
+
+    def fake_cli(prompt):
+        if "Respond with ONLY a JSON array" in prompt:
+            return json.dumps([p for p in file_paths if p in prompt])
+        return '{"summary": "uses logging", "example": null, "consistency": "consistent", "exceptions": []}'
+
+    result = analyze_category(
+        "logging", str(tmp_path), file_paths, full_repo_mode=True, batch_size=2, run_cli=fake_cli
+    )
+    assert result["consistency"] == "consistent"
+    assert len(result["files_examined"]) == 5
+    assert set(result["files_examined"]) == set(file_paths)
