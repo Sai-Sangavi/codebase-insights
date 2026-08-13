@@ -21,6 +21,11 @@ from .stats.stats import (
     inventory_dependency_manifests,
 )
 
+# codebase-insights' own repo root (this file lives at <root>/codebase_insights/runner.py).
+# Used as the anchor for the smart default output location below. Tests monkeypatch this
+# constant to a tmp_path so they never write into the real repo.
+_PACKAGE_ROOT = Path(__file__).resolve().parent.parent
+
 
 def collect_l1_stats(repo_path: str, files: list) -> dict:
     return {
@@ -67,6 +72,18 @@ def _run_l2_or_none(repo_path: str, files: list, config: dict) -> dict | None:
         return None
 
 
+def _default_output_paths(repo_path: str) -> tuple[Path, Path]:
+    """Smart default when neither --out nor config's output_path is set: write
+    into codebase-insights' own output/json/ and output/md/, named after the
+    analyzed repo, so every run's results are archived in one place."""
+    repo_name = Path(repo_path).resolve().name
+    json_dir = _PACKAGE_ROOT / "output" / "json"
+    md_dir = _PACKAGE_ROOT / "output" / "md"
+    json_dir.mkdir(parents=True, exist_ok=True)
+    md_dir.mkdir(parents=True, exist_ok=True)
+    return json_dir / f"{repo_name}-metrics.json", md_dir / f"{repo_name}-metrics.md"
+
+
 def run(
     repo_path: str,
     config_path: str | None = None,
@@ -104,12 +121,18 @@ def run(
     if l2_patterns is not None:
         metrics["l2_patterns"] = l2_patterns
 
-    output_path = Path(out or config["output_path"])
+    explicit_out = out or config["output_path"]
+    if explicit_out:
+        output_path = Path(explicit_out)
+        md_path = output_path.with_suffix(".md")
+    else:
+        output_path, md_path = _default_output_paths(repo_path)
+
     try:
         output_path.write_text(json.dumps(metrics, indent=2), encoding="utf-8")
-        output_path.with_suffix(".md").write_text(render_markdown(metrics), encoding="utf-8")
+        md_path.write_text(render_markdown(metrics), encoding="utf-8")
     except OSError as e:
         print(f"error: could not write output: {e}", file=sys.stderr)
         return 1
-    print(f"wrote {output_path} and {output_path.with_suffix('.md')}")
+    print(f"wrote {output_path} and {md_path}")
     return 0

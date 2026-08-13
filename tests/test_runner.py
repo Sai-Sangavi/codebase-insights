@@ -26,6 +26,28 @@ def test_run_writes_metrics_json_with_l1_stats(tmp_path, monkeypatch):
     assert "l2_patterns" not in metrics
 
 
+def test_run_uses_smart_default_output_location_when_out_not_given(tmp_path, monkeypatch):
+    # Redirect the "repo root" anchor to a throwaway directory so this test
+    # never writes into the real codebase-insights repo.
+    fake_repo_root = tmp_path / "fake-package-root"
+    monkeypatch.setattr(runner, "_PACKAGE_ROOT", fake_repo_root)
+
+    analyzed = tmp_path / "target-repo"
+    analyzed.mkdir()
+    repo = _make_minimal_repo(analyzed)
+    monkeypatch.setattr(runner, "collect_l2_patterns", lambda repo_path, files, config: None)
+
+    exit_code = run(str(repo))
+
+    assert exit_code == 0
+    json_path = fake_repo_root / "output" / "json" / "target-repo-metrics.json"
+    md_path = fake_repo_root / "output" / "md" / "target-repo-metrics.md"
+    assert json_path.exists()
+    assert md_path.exists()
+    metrics = json.loads(json_path.read_text(encoding="utf-8"))
+    assert metrics["repo_path"] == str(repo.resolve())
+
+
 def test_run_returns_1_on_malformed_config(tmp_path, monkeypatch, capsys):
     monkeypatch.chdir(tmp_path)
     repo = _make_minimal_repo(tmp_path)

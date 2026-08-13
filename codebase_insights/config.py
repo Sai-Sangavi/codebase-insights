@@ -29,7 +29,8 @@ DEFAULT_CONFIG = {
     "architecture_summary": True,
     "full_repo_mode": False,
     "batch_size": 150,
-    "output_path": "metrics.json",
+    "output_path": None,  # None = use the smart default (output/json, output/md); set to
+                          # override with a fixed path, same as --out.
 }
 
 
