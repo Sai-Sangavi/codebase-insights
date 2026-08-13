@@ -31,18 +31,21 @@ skipped with a warning on stderr.
 ## Project layout
 
 ```
-analyze.py       # entrypoint / orchestrator
-config.py        # config loading (deterministic)
-file_walker.py   # file enumeration + exclude/language handling (deterministic)
-stats.py         # L1 stats (deterministic)
-report.py        # metrics.json -> metrics.md renderer (deterministic)
-llm/
-  patterns.py    # L2 pattern detection -- the only module that shells out to Claude CLI
+analyze.py       # entrypoint / orchestrator (cross-cutting)
+config.py        # config loading for both levels (cross-cutting)
+report.py        # renders both levels' output to metrics.md (cross-cutting)
+stats/           # L1: deterministic stats, zero LLM dependency
+  file_walker.py # file enumeration + exclude/language handling
+  stats.py       # the actual stat computations
+llm/             # L2: LLM-based pattern detection
+  patterns.py    # the only module that shells out to Claude CLI
 ```
 
-Everything outside `llm/` is deterministic and has no LLM dependency;
+`stats/` groups everything that computes L1's deterministic stats;
 `llm/patterns.py` is the sole boundary where the tool talks to the Claude
-Code CLI.
+Code CLI for L2. `analyze.py`, `config.py`, and `report.py` stay at the
+root since they're genuinely cross-cutting — config holds settings for
+both levels, and report renders both levels' output.
 
 ## Development
 

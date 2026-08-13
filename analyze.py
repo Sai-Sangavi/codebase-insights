@@ -7,10 +7,10 @@ from datetime import datetime, timezone
 from pathlib import Path
 
 from config import ConfigError, get_effective_excludes, load_config
-from file_walker import walk_files
 from llm.patterns import analyze_category, summarize_architecture
 from report import render_markdown
-from stats import (
+from stats.file_walker import walk_files
+from stats.stats import (
     check_pr_templates,
     count_files_by_language,
     count_loc_by_language,

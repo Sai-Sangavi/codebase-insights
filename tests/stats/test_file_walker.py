@@ -1,4 +1,4 @@
-from file_walker import WalkedFile, classify_language, walk_files
+from stats.file_walker import WalkedFile, classify_language, walk_files
 
 
 def _make_repo(tmp_path):
@@ -63,7 +63,7 @@ def test_walk_files_prunes_excluded_directories_without_descending(tmp_path, mon
             visited_dirs.append(dirpath)
             yield dirpath, dirnames, filenames
 
-    monkeypatch.setattr("file_walker.os.walk", spying_walk)
+    monkeypatch.setattr("stats.file_walker.os.walk", spying_walk)
     files = walk_files(str(tmp_path), exclude=["node_modules/**"])
     paths = {f.path for f in files}
     assert paths == {"src/main.py"}
@@ -94,7 +94,7 @@ def test_walk_files_prunes_nested_excluded_directories_without_descending(tmp_pa
             visited_dirs.append(dirpath)
             yield dirpath, dirnames, filenames
 
-    monkeypatch.setattr("file_walker.os.walk", spying_walk)
+    monkeypatch.setattr("stats.file_walker.os.walk", spying_walk)
     files = walk_files(str(tmp_path), exclude=["__pycache__/**"])
     assert {f.path for f in files} == {"api/main.py"}
     assert not any("__pycache__" in str(d) for d in visited_dirs)

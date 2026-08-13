@@ -7,7 +7,7 @@ from collections import Counter
 from datetime import datetime, timezone
 from pathlib import Path
 
-from file_walker import WalkedFile
+from stats.file_walker import WalkedFile
 
 
 def count_files_by_language(files: list[WalkedFile]) -> dict:

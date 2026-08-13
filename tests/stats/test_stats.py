@@ -1,7 +1,7 @@
 import json
 
-from file_walker import WalkedFile
-from stats import count_files_by_language, count_loc_by_language, count_tests, inventory_config_files, inventory_dependency_manifests
+from stats.file_walker import WalkedFile
+from stats.stats import count_files_by_language, count_loc_by_language, count_tests, inventory_config_files, inventory_dependency_manifests
 
 
 def test_count_files_by_language_ignores_unclassified_files():
@@ -61,14 +61,14 @@ def test_count_tests_detects_jest_style_functions(tmp_path):
 
 
 def test_is_test_file_rejects_filenames_with_test_as_mid_word_substring():
-    from stats import _is_test_file
+    from stats.stats import _is_test_file
     assert _is_test_file("contest_winners.py") is False
     assert _is_test_file("latest_data.py") is False
     assert _is_test_file("attestation_service.py") is False
 
 
 def test_is_test_file_accepts_standard_test_naming_conventions():
-    from stats import _is_test_file
+    from stats.stats import _is_test_file
     assert _is_test_file("test_thing.py") is True
     assert _is_test_file("thing_test.py") is True
     assert _is_test_file("foo.test.js") is True
@@ -125,13 +125,13 @@ def test_inventory_dependency_manifests_skips_malformed_package_json(tmp_path):
 
 
 def test_count_pyproject_toml_single_line_array():
-    from stats import _count_pyproject_toml
+    from stats.stats import _count_pyproject_toml
     text = 'dependencies = ["requests>=2.31", "click>=8"]\nclassifiers = ["A", "B", "C"]\n'
     assert _count_pyproject_toml(text) == 2
 
 
 def test_count_pyproject_toml_multi_line_array():
-    from stats import _count_pyproject_toml
+    from stats.stats import _count_pyproject_toml
     text = (
         "dependencies = [\n"
         '    "requests>=2.31",\n'
@@ -142,7 +142,7 @@ def test_count_pyproject_toml_multi_line_array():
 
 
 def test_count_pyproject_toml_poetry_style_table():
-    from stats import _count_pyproject_toml
+    from stats.stats import _count_pyproject_toml
     text = (
         "[tool.poetry.dependencies]\n"
         'python = "^3.12"\n'
@@ -157,7 +157,7 @@ def test_count_pyproject_toml_poetry_style_table():
 
 import subprocess
 
-from stats import (
+from stats.stats import (
     check_pr_templates,
     detect_branch_strategy,
     detect_commit_convention,
@@ -239,6 +239,6 @@ def test_detect_branch_strategy_does_not_falsely_match_similar_branch_names(tmp_
 
 
 def test_run_git_returns_empty_string_when_repo_path_does_not_exist():
-    from stats import _run_git
+    from stats.stats import _run_git
     result = _run_git("/this/path/does/not/exist", ["log"])
     assert result == ""
