@@ -72,13 +72,30 @@ def _run_l2_or_none(repo_path: str, files: list, config: dict) -> dict | None:
         return None
 
 
-def _default_output_paths(repo_path: str) -> tuple[Path, Path]:
+def _has_l2_content(metrics: dict) -> bool:
+    """True only if l2_patterns actually contains a finding — a non-empty
+    categories dict or a real architecture_summary. An empty-but-present
+    l2_patterns (e.g. pattern_categories: [] with architecture_summary: false)
+    is not 'full analysis', just L2's inert default shape."""
+    l2 = metrics.get("l2_patterns")
+    if not l2:
+        return False
+    return bool(l2.get("categories")) or bool(l2.get("architecture_summary"))
+
+
+def _default_output_paths(repo_path: str, metrics: dict) -> tuple[Path, Path]:
     """Smart default when neither --out nor config's output_path is set: write
-    into codebase-insights' own output/json/ and output/md/, named after the
-    analyzed repo, so every run's results are archived in one place."""
+    into codebase-insights' own output/<category>/json/ and .../md/, named
+    after the analyzed repo, so every run's results are archived in one place.
+
+    <category> is full-analysis if the output actually contains L2 pattern
+    findings, basic-stats otherwise (L2 skipped via config, empty via
+    pattern_categories: [], or the claude CLI was unavailable).
+    """
     repo_name = Path(repo_path).resolve().name
-    json_dir = _PACKAGE_ROOT / "output" / "json"
-    md_dir = _PACKAGE_ROOT / "output" / "md"
+    category = "full-analysis" if _has_l2_content(metrics) else "basic-stats"
+    json_dir = _PACKAGE_ROOT / "output" / category / "json"
+    md_dir = _PACKAGE_ROOT / "output" / category / "md"
     json_dir.mkdir(parents=True, exist_ok=True)
     md_dir.mkdir(parents=True, exist_ok=True)
     return json_dir / f"{repo_name}-metrics.json", md_dir / f"{repo_name}-metrics.md"
@@ -126,7 +143,7 @@ def run(
         output_path = Path(explicit_out)
         md_path = output_path.with_suffix(".md")
     else:
-        output_path, md_path = _default_output_paths(repo_path)
+        output_path, md_path = _default_output_paths(repo_path, metrics)
 
     try:
         output_path.write_text(json.dumps(metrics, indent=2), encoding="utf-8")

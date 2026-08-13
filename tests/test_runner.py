@@ -26,7 +26,7 @@ def test_run_writes_metrics_json_with_l1_stats(tmp_path, monkeypatch):
     assert "l2_patterns" not in metrics
 
 
-def test_run_uses_smart_default_output_location_when_out_not_given(tmp_path, monkeypatch):
+def test_run_uses_smart_default_basic_stats_location_when_l2_absent(tmp_path, monkeypatch):
     # Redirect the "repo root" anchor to a throwaway directory so this test
     # never writes into the real codebase-insights repo.
     fake_repo_root = tmp_path / "fake-package-root"
@@ -40,12 +40,63 @@ def test_run_uses_smart_default_output_location_when_out_not_given(tmp_path, mon
     exit_code = run(str(repo))
 
     assert exit_code == 0
-    json_path = fake_repo_root / "output" / "json" / "target-repo-metrics.json"
-    md_path = fake_repo_root / "output" / "md" / "target-repo-metrics.md"
+    json_path = fake_repo_root / "output" / "basic-stats" / "json" / "target-repo-metrics.json"
+    md_path = fake_repo_root / "output" / "basic-stats" / "md" / "target-repo-metrics.md"
     assert json_path.exists()
     assert md_path.exists()
     metrics = json.loads(json_path.read_text(encoding="utf-8"))
     assert metrics["repo_path"] == str(repo.resolve())
+
+
+def test_run_uses_smart_default_full_analysis_location_when_l2_present(tmp_path, monkeypatch):
+    fake_repo_root = tmp_path / "fake-package-root"
+    monkeypatch.setattr(runner, "_PACKAGE_ROOT", fake_repo_root)
+
+    analyzed = tmp_path / "target-repo"
+    analyzed.mkdir()
+    repo = _make_minimal_repo(analyzed)
+    fake_l2 = {
+        "mode": "default",
+        "categories": {"logging": {"category": "logging", "summary": "uses logging",
+                                    "example": None, "consistency": "consistent",
+                                    "exceptions": [], "files_examined": []}},
+        "architecture_summary": None,
+    }
+    monkeypatch.setattr(runner, "collect_l2_patterns", lambda repo_path, files, config: fake_l2)
+
+    exit_code = run(str(repo))
+
+    assert exit_code == 0
+    json_path = fake_repo_root / "output" / "full-analysis" / "json" / "target-repo-metrics.json"
+    md_path = fake_repo_root / "output" / "full-analysis" / "md" / "target-repo-metrics.md"
+    assert json_path.exists()
+    assert md_path.exists()
+    metrics = json.loads(json_path.read_text(encoding="utf-8"))
+    assert metrics["l2_patterns"] == fake_l2
+
+
+def test_run_uses_smart_default_basic_stats_location_when_l2_empty_but_present(tmp_path, monkeypatch):
+    # Regression test: an L1-only config (pattern_categories: [],
+    # architecture_summary: false) still gets a non-None l2_patterns dict
+    # back from collect_l2_patterns (empty categories, no architecture
+    # summary) -- that's a truthy dict, but it carries no real analysis and
+    # must still be classified as basic-stats, not full-analysis. Caught by
+    # a real end-to-end smoke test before this test existed.
+    fake_repo_root = tmp_path / "fake-package-root"
+    monkeypatch.setattr(runner, "_PACKAGE_ROOT", fake_repo_root)
+
+    analyzed = tmp_path / "target-repo"
+    analyzed.mkdir()
+    repo = _make_minimal_repo(analyzed)
+    empty_l2 = {"mode": "default", "categories": {}, "architecture_summary": None}
+    monkeypatch.setattr(runner, "collect_l2_patterns", lambda repo_path, files, config: empty_l2)
+
+    exit_code = run(str(repo))
+
+    assert exit_code == 0
+    json_path = fake_repo_root / "output" / "basic-stats" / "json" / "target-repo-metrics.json"
+    assert json_path.exists()
+    assert not (fake_repo_root / "output" / "full-analysis").exists()
 
 
 def test_run_skip_l1_omits_l1_stats_from_output(tmp_path, monkeypatch):

@@ -10,25 +10,32 @@ pip install -e .
 python -m codebase_insights /path/to/some/repo
 ```
 
-By default this writes into `output/json/<repo-name>-metrics.json` and
-`output/md/<repo-name>-metrics.md` **inside codebase-insights itself**
-(named after whatever repo you pointed it at), so every run's results are
-archived in one place, committed to this repo, rather than scattered
-wherever you happened to run the command from.
+By default this writes into **codebase-insights itself**, under
+`output/<category>/json/<repo-name>-metrics.json` and
+`output/<category>/md/<repo-name>-metrics.md` (named after whatever repo
+you pointed it at), so every run's results are archived in one place,
+committed to this repo, rather than scattered wherever you happened to run
+the command from. `<category>` is picked automatically:
+
+- **`full-analysis`** — the output actually contains L2 pattern findings
+  (the normal case for a default run with the `claude` CLI available).
+- **`basic-stats`** — no real L2 content (L2 was skipped/empty via config,
+  or the `claude` CLI was unavailable) — deterministic stats only.
 
 Options:
 
 - `--config config.yaml` — override excludes, language allowlist, pattern
   categories, mode, batch size, output path. See `config.example.yaml` for the
-  full set of options and their defaults.
+  full set of options and their defaults. Two ready-made partial-run configs:
+  - `config-l1-only.yaml` — L1 stats only, zero LLM calls, instant.
+  - `config-l2-only.yaml` — L2 pattern detection only, `l1_stats` omitted.
 - `--full` — exhaustive full-repo pattern coverage (chunks the whole file list
   into batches instead of narrowing to a handful of candidates). Slower, more
   thorough.
 - `--out metrics.json` — override the output path with a single fixed
-  location instead of the `output/json/` + `output/md/` default (also
-  determines the `.md` report's path, e.g. `--out foo.json` writes
-  `foo.json` + `foo.md`). Same effect as setting `output_path` in
-  `config.yaml`.
+  location instead of the `output/<category>/` default (also determines
+  the `.md` report's path, e.g. `--out foo.json` writes `foo.json` +
+  `foo.md`). Same effect as setting `output_path` in `config.yaml`.
 
 L2 (pattern detection) requires the `claude` CLI to be installed and on
 `PATH`. If it isn't found, L1 stats still run and are written normally; L2 is
@@ -76,8 +83,9 @@ downloaded open-source repository (not this repo, and not `bnts-arc` —
 see the design spec's constraints) and confirm the output looks sane. This
 is a manual sanity check, not an automated test — the L2 Claude CLI calls
 are non-deterministic and not something to assert on in CI. Past runs are
-archived under `output/json/` and `output/md/` (e.g. `microblog-metrics.*`
-from a validation run against `miguelgrinberg/microblog`) as reference
+archived under `output/full-analysis/` and `output/basic-stats/` (e.g.
+`microblog-metrics.*` and `express-mongoose-es6-rest-api-metrics.*` from
+validation runs against real repos in different stacks) as reference
 examples of real output.
 
 ## Design
