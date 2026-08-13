@@ -1,5 +1,6 @@
 """Enumerate repo files, applying excludes and language classification."""
 
+import os
 from dataclasses import dataclass
 from fnmatch import fnmatch
 from pathlib import Path
@@ -49,14 +50,22 @@ def walk_files(
     exclude = exclude or []
     root = Path(repo_path)
     results = []
-    for path in sorted(root.rglob("*")):
-        if path.is_dir():
-            continue
-        rel = path.relative_to(root).as_posix()
-        if _is_excluded(rel, exclude):
-            continue
-        lang = classify_language(rel)
-        if languages and lang not in languages:
-            continue
-        results.append(WalkedFile(path=rel, language=lang))
+    for dirpath, dirnames, filenames in os.walk(root):
+        dirnames.sort()
+        pruned = []
+        for d in dirnames:
+            rel_dir = (Path(dirpath) / d).relative_to(root).as_posix()
+            if _is_excluded(rel_dir, exclude) or _is_excluded(rel_dir + "/", exclude):
+                continue
+            pruned.append(d)
+        dirnames[:] = pruned
+
+        for filename in sorted(filenames):
+            rel = (Path(dirpath) / filename).relative_to(root).as_posix()
+            if _is_excluded(rel, exclude):
+                continue
+            lang = classify_language(rel)
+            if languages and lang not in languages:
+                continue
+            results.append(WalkedFile(path=rel, language=lang))
     return results
