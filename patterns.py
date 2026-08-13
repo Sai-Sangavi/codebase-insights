@@ -2,6 +2,7 @@
 
 import json
 import subprocess
+from pathlib import Path
 
 
 class ClaudeCLIError(Exception):
@@ -51,3 +52,61 @@ def narrow_candidates(
         return []
     valid = set(file_paths)
     return [c for c in candidates if isinstance(c, str) and c in valid][:max_candidates]
+
+
+def synthesize_pattern(
+    category: str, description: str, candidate_contents: dict, run_cli=run_claude_cli
+) -> dict:
+    if not candidate_contents:
+        return {
+            "category": category,
+            "summary": "No candidate files found for this pattern.",
+            "example": None,
+            "consistency": "unknown",
+            "exceptions": [],
+            "files_examined": [],
+        }
+    files_block = "\n\n".join(
+        f"--- {path} ---\n{content}" for path, content in candidate_contents.items()
+    )
+    prompt = (
+        f"Given these files from a code repository, describe {description}.\n"
+        "Respond with ONLY a JSON object with these keys: "
+        '"summary" (string), "example" (object with "file" and "snippet"), '
+        '"consistency" (one of "consistent", "mostly_consistent", "inconsistent"), '
+        '"exceptions" (array of strings).\n\n' + files_block
+    )
+    output = run_cli(prompt)
+    try:
+        parsed = _extract_json(output)
+    except (ValueError, json.JSONDecodeError):
+        parsed = {}
+    if not isinstance(parsed, dict):
+        parsed = {}
+    return {
+        "category": category,
+        "summary": parsed.get("summary", ""),
+        "example": parsed.get("example"),
+        "consistency": parsed.get("consistency", "unknown"),
+        "exceptions": parsed.get("exceptions", []),
+        "files_examined": list(candidate_contents.keys()),
+    }
+
+
+def _read_files(repo_path: str, paths: list[str]) -> dict:
+    root = Path(repo_path)
+    contents = {}
+    for p in paths:
+        try:
+            contents[p] = (root / p).read_text(encoding="utf-8")
+        except (UnicodeDecodeError, OSError):
+            continue
+    return contents
+
+
+def analyze_category_default(
+    category: str, description: str, repo_path: str, file_paths: list[str], run_cli=run_claude_cli
+) -> dict:
+    candidates = narrow_candidates(category, description, file_paths, run_cli=run_cli)
+    contents = _read_files(repo_path, candidates)
+    return synthesize_pattern(category, description, contents, run_cli=run_cli)
